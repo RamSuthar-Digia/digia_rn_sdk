@@ -30,9 +30,9 @@ export class Logger {
         if (__DEV__) {
             const logMessage = tag ? `[${tag}] ERROR: ${message}` : `ERROR: ${message}`;
             const fullMessage = error ? `${logMessage} - ${error}` : logMessage;
-            console.error(fullMessage);
+            console.error(fullMessage.toString());
             if (error?.stack) {
-                console.error(error.stack);
+                console.error(error.stack.toString());
             }
         }
     }

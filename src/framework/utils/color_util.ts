@@ -15,6 +15,10 @@ export class ColorUtil {
      *
      * The `R`, `G`, `B`, and `A` represent hexadecimal digits (0-9, A-F, a-f) that
      * define the red, green, blue, and alpha components of the color, respectively.
+     * 
+     * If the alpha value is not provided, the pattern assumes it to be 255 (fully opaque).
+     * The alpha value can be either a double ranging from 0.0 to 1.0, or a hexadecimal value
+     * ranging from 00 to FF (0 to 255 in decimal).
      */
     static readonly hexColorPattern = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
@@ -37,23 +41,33 @@ export class ColorUtil {
     }
 
     /**
-     * Converts the given hex color string to the corresponding integer.
+     * Converts the given hex color string to the corresponding unsigned integer.
      *
      * Note that when no alpha/opacity is specified, 0xFF is assumed.
+     * This method is kept for compatibility but React Native uses hex strings directly.
      *
      * @param hex - The hex color string
-     * @returns Integer representation of the color
+     * @returns Unsigned integer representation of the color
+     * 
+     * @example
+     * ```typescript
+     * ColorUtil.hexToInt("#FF0000");      // 4294901760 (0xFFFF0000 unsigned)
+     * ColorUtil.hexToInt("#4945FF");      // 4283416063 (0xFF4945FF unsigned)
+     * ColorUtil.hexToInt("00FF00");       // 4278255360 (0xFF00FF00 unsigned)
+     * ColorUtil.hexToInt("#12345F80");    // 2153684864 (0x8012345F unsigned)
+     * ```
      */
     static hexToInt(hex: string): number {
         const hexDigits = hex.startsWith('#') ? hex.substring(1) : hex;
         const hexMask = hexDigits.length <= 6 ? 0xff000000 : 0;
         const hexValue = parseInt(hexDigits, 16);
 
-        if (hexValue < 0 || hexValue > 0xffffffff) {
+        if (isNaN(hexValue) || hexValue < 0) {
             throw new Error(`Invalid hex color value: ${hex}`);
         }
 
-        return hexValue | hexMask;
+        // Use unsigned right shift to ensure we get an unsigned 32-bit integer
+        return (hexValue | hexMask) >>> 0;
     }
 
     /**
@@ -67,11 +81,35 @@ export class ColorUtil {
      * ColorUtil.fromHexString("#FF0000");      // "#FF0000"
      * ColorUtil.fromHexString("00FF00");       // "#00FF00"
      * ColorUtil.fromHexString("#12345F80");    // "#12345F80"
+     * ColorUtil.fromHexString("#4945FF");      // "#4945FF"
      * ```
      */
     static fromHexString(hex: string): string {
-        const hexIntValue = this.hexToInt(hex);
-        return this.intToHex(hexIntValue, { includeAlpha: hex.length > 7 });
+        // Validate hex format
+        if (!this.isValidColorHex(hex)) {
+            throw new Error(`Invalid hex color: ${hex}`);
+        }
+
+        const hexDigits = hex.startsWith('#') ? hex.substring(1) : hex;
+
+        // Add alpha if not present (3 or 6 digit hex)
+        let result: string;
+        if (hexDigits.length === 3) {
+            // Convert #RGB to #RRGGBB
+            result = '#' + hexDigits[0] + hexDigits[0] +
+                hexDigits[1] + hexDigits[1] +
+                hexDigits[2] + hexDigits[2];
+        } else if (hexDigits.length === 6) {
+            // Already #RRGGBB format
+            result = '#' + hexDigits;
+        } else if (hexDigits.length === 8) {
+            // Already #RRGGBBAA format
+            result = '#' + hexDigits;
+        } else {
+            result = '#' + hexDigits;
+        }
+
+        return result.toUpperCase();
     }
 
     /**
@@ -94,6 +132,8 @@ export class ColorUtil {
      * Format: "R,G,B" or "R,G,B,A"
      * - R, G, B: 0-255
      * - A (optional): 0.0-1.0 (double) or 0-255 (hex)
+     * 
+     * Out of range values are brought into range using clamp.
      *
      * @param rgba - The RGBA string
      * @returns Color string in "rgba(R, G, B, A)" format
@@ -106,8 +146,10 @@ export class ColorUtil {
      * ```
      */
     static fromRgbaString(rgba: string): string {
+        // Extract the individual components
         const components = rgba.split(',');
 
+        // Invalid format, throw error
         if (components.length < 3) {
             throw new Error('Invalid RGBA format');
         }
@@ -190,13 +232,16 @@ export class ColorUtil {
     /**
      * Converts an integer color value to hex string.
      *
+     * Note that only the RGB values will be returned (like #RRGGBB), so
+     * any alpha/opacity value will be stripped unless includeAlpha is set.
+     *
      * @param i - Integer color value
      * @param options - Conversion options
      * @returns Hex string with leading #
      * 
      * @example
      * ```typescript
-     * ColorUtil.intToHex(0xFF0000FF);                        // "#FF0000"
+     * ColorUtil.intToHex(0xFFFF0000);                        // "#FF0000"
      * ColorUtil.intToHex(0x80FF0000, { includeAlpha: true }); // "#80FF0000"
      * ```
      */
@@ -228,6 +273,62 @@ export class ColorUtil {
         hex += this._padRadix(r);
         hex += this._padRadix(g);
         hex += this._padRadix(b);
+
+        return hex.toUpperCase();
+    }
+
+    /**
+     * Converts RGBA color values to hex string.
+     * 
+     * This is the equivalent of Dart's toHexString method.
+     *
+     * @param color - Object with r, g, b, a properties (0-1 range) or RGBA string
+     * @param options - Conversion options
+     * @returns Hex string with leading #
+     * 
+     * @example
+     * ```typescript
+     * ColorUtil.toHexString({ r: 1, g: 0, b: 0, a: 1 });  // "#FF0000"
+     * ColorUtil.toHexString("rgba(255, 0, 0, 0.5)", { includeHashSign: true, skipAlphaIfOpaque: false });  // "#80FF0000"
+     * ```
+     */
+    static toHexString(
+        color: { r: number; g: number; b: number; a: number } | string,
+        options?: {
+            includeHashSign?: boolean;
+            skipAlphaIfOpaque?: boolean;
+        }
+    ): string {
+        const includeHashSign = options?.includeHashSign ?? true;
+        const skipAlphaIfOpaque = options?.skipAlphaIfOpaque ?? true;
+
+        let r: number, g: number, b: number, a: number;
+
+        if (typeof color === 'string') {
+            // Parse RGBA string
+            const rgba = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+            if (!rgba) {
+                throw new Error(`Invalid color string: ${color}`);
+            }
+            r = parseInt(rgba[1]) / 255;
+            g = parseInt(rgba[2]) / 255;
+            b = parseInt(rgba[3]) / 255;
+            a = rgba[4] ? parseFloat(rgba[4]) : 1;
+        } else {
+            r = color.r;
+            g = color.g;
+            b = color.b;
+            a = color.a;
+        }
+
+        const alphaHex = this._padRadix(Math.round(a * 255) & 0xff);
+        const alphaString = (skipAlphaIfOpaque && alphaHex.toUpperCase() === 'FF') ? '' : alphaHex;
+
+        const hex = (includeHashSign ? '#' : '') +
+            alphaString +
+            this._padRadix(Math.round(r * 255) & 0xff) +
+            this._padRadix(Math.round(g * 255) & 0xff) +
+            this._padRadix(Math.round(b * 255) & 0xff);
 
         return hex.toUpperCase();
     }

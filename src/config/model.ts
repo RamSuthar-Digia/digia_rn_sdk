@@ -93,13 +93,14 @@ export class DUIConfig {
      */
     constructor(data: any) {
         console.log('DUIConfig initializing with data:', data);
-        this.themeConfig = as(data?.theme, TypeValidators.object);
-        this.pages = as(data?.pages, TypeValidators.object);
+        this.themeConfig = as(data?.theme, TypeValidators.object, () => ({}));
+        this.pages = as(data?.pages, TypeValidators.object, () => ({}));
         this.components = as$(data?.components, TypeValidators.object) ?? undefined;
-        this.restConfig = as(data?.rest, TypeValidators.object);
+        this.restConfig = as(data?.rest, TypeValidators.object, () => ({}));
         this.initialRoute = as(
             data?.appSettings?.initialRoute,
-            TypeValidators.string
+            TypeValidators.string,
+            () => ''
         );
         this.appState = as$(data?.appState, TypeValidators.array) ?? undefined;
         this.version = as$(data?.version, TypeValidators.number) ?? undefined;
@@ -115,7 +116,7 @@ export class DUIConfig {
      * Internal getter for light theme colors.
      */
     private get colors(): Record<string, any> {
-        return as(this.themeConfig?.colors?.light, TypeValidators.object);
+        return as(this.themeConfig?.colors?.light, TypeValidators.object, () => ({}));
     }
 
     /**
@@ -124,7 +125,7 @@ export class DUIConfig {
      * @returns Map of color token names to color values
      */
     get colorTokens(): Record<string, any> {
-        return as(this.themeConfig?.colors?.light, TypeValidators.object);
+        return as(this.themeConfig?.colors?.light, TypeValidators.object, () => ({}));
     }
 
     /**
@@ -133,7 +134,7 @@ export class DUIConfig {
      * @returns Map of color token names to color values
      */
     get darkColorTokens(): Record<string, any> {
-        return as(this.themeConfig?.colors?.dark, TypeValidators.object);
+        return as(this.themeConfig?.colors?.dark, TypeValidators.object, () => ({}));
     }
 
     /**
@@ -142,7 +143,7 @@ export class DUIConfig {
      * @returns Map of font token names to font configurations
      */
     get fontTokens(): Record<string, any> {
-        return as(this.themeConfig?.fonts, TypeValidators.object);
+        return as(this.themeConfig?.fonts, TypeValidators.object, () => ({}));
     }
 
     /**

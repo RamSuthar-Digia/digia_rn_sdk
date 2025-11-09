@@ -3,7 +3,7 @@ import { Variable } from '../data_type/variable';
 import { VariableJsonConverter } from '../data_type/variable_json_convertor';
 import { JsonLike } from '../utils';
 import { as$ } from '../utils/functional_utils';
-import { tryKeys } from '../utils/json_util';
+import { tryKeys, valueFor } from '../utils/json_util';
 import { VWData } from './vw_data';
 
 export class DUIPageDefinition {
@@ -68,8 +68,8 @@ export class DUIPageDefinition {
                 }
                 return undefined;
             })(),
-            onPageLoad: as$<JsonLike>(json.valueFor('actions.onPageLoadAction'))?.maybe(ActionFlow.fromJson),
-            onBackPress: as$<JsonLike>(json.valueFor('actions.onBackPress'))?.maybe(ActionFlow.fromJson),
+            onPageLoad: as$<JsonLike>(valueFor(json, 'actions.onPageLoadAction'))?.maybe(ActionFlow.fromJson),
+            onBackPress: as$<JsonLike>(valueFor(json, 'actions.onBackPress'))?.maybe(ActionFlow.fromJson),
         });
     }
 }

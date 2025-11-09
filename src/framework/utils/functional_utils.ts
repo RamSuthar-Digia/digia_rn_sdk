@@ -63,25 +63,29 @@ export function maybe2<T, U, R>(
  * Attempts to cast a value to a specified type with a fallback.
  * 
  * This function provides type-safe casting with an optional fallback
- * function if the cast fails.
+ * function if the cast fails. Unlike as$(), this function is stricter
+ * and requires either a successful validation or an orElse handler.
  * 
  * @param x - The value to cast
- * @param validator - Function to validate if x is of type T
+ * @param validator - Optional function to validate if x is of type T. If not provided, just checks for null/undefined.
  * @param orElse - Optional function to provide a default value if casting fails
  * @returns The cast value, or the result of orElse if provided
  * @throws TypeError if casting fails and no orElse is provided
  * 
  * @example
  * ```typescript
- * // With validator
+ * // With validator - throws if validation fails
  * const str = as(value, (v): v is string => typeof v === 'string');
  * 
- * // With fallback
+ * // With fallback - never throws
  * const num = as(
  *   value,
  *   (v): v is number => typeof v === 'number',
  *   () => 0
  * );
+ * 
+ * // Without validator - just checks if value exists
+ * const obj = as(data, TypeValidators.object); // Throws if not an object
  * ```
  */
 export function as<T>(
@@ -89,12 +93,35 @@ export function as<T>(
     validator?: (value: any) => value is T,
     orElse?: () => T
 ): T {
-    if (validator && validator(x)) {
+    // If no validator provided, just check if value exists and return it
+    if (!validator) {
+        if (x !== null && x !== undefined) {
+            return x as T;
+        }
+        if (orElse !== undefined) {
+            return orElse();
+        }
+        throw new TypeError(`Cannot cast null/undefined value to specified type`);
+    }
+
+    // With validator, perform validation
+    if (validator(x)) {
         return x;
     }
+
+    // Validation failed
     if (orElse !== undefined) {
         return orElse();
     }
+
+    // Log the failure in dev mode before throwing
+    if (__DEV__) {
+        Logger.warning(
+            `Type validation failed for value: ${JSON.stringify(x)}`,
+            'FunctionalUtil'
+        );
+    }
+
     throw new TypeError(`Cannot cast value to specified type`);
 }
 
@@ -103,15 +130,15 @@ export function as<T>(
  * 
  * This function differs significantly from TypeScript's type assertions:
  * - It returns `null` instead of throwing an exception if the cast fails.
- * - It logs a warning in development mode when casting fails.
+ * - It logs a warning in development mode when casting fails (only if validator is provided).
  * 
  * Key differences from TypeScript's `as`:
  * 1. `as$(x, validator)` returns `null` if `x` is not of type `T`.
  * 2. `x as T` provides no runtime safety - it's a compile-time only assertion.
  * 
  * @param x - The value to cast
- * @param validator - Function to validate if x is of type T
- * @returns The cast value if successful, null if casting fails
+ * @param validator - Optional function to validate if x is of type T. If not provided, performs a simple null check.
+ * @returns The cast value if successful, null if casting fails or x is null/undefined
  * 
  * @example
  * ```typescript
@@ -122,6 +149,10 @@ export function as<T>(
  * const result2 = as$(jsonValue, (v): v is { name: string } => 
  *   typeof v === 'object' && v !== null && typeof v.name === 'string'
  * ); // Returns the object
+ * 
+ * // Without validator - just checks if value exists
+ * const result3 = as$<string>("hello"); // Returns "hello"
+ * const result4 = as$<string>(null); // Returns null
  * ```
  * 
  * This function is particularly useful in scenarios where you want to
@@ -132,16 +163,21 @@ export function as$<T>(
     x: any,
     validator?: (value: any) => value is T
 ): T | null {
-    if (validator && validator(x)) {
+    // If no validator provided, just check if value exists
+    if (!validator) {
+        return x !== null && x !== undefined ? (x as T) : null;
+    }
+
+    // With validator, perform validation
+    if (validator(x)) {
         return x;
     }
 
-    // Log casting failures in debug mode
-    if (__DEV__ && x !== null && x !== undefined) {
-        Logger.error(
-            `CastError when trying to cast ${x} to specified type`,
-            'FunctionalUtil',
-            new TypeError()
+    // Log casting failures in debug mode only when validator was provided
+    if (__DEV__) {
+        Logger.warning(
+            `CastError when trying to cast ${JSON.stringify(x)} to specified type`,
+            'FunctionalUtil'
         );
     }
 

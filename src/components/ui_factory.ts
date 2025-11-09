@@ -5,6 +5,8 @@ import { IconData, ImageProvider, UIResources } from './ui_resources';
 import { DefaultVirtualWidgetRegistry, VirtualWidgetRegistry } from './virtual_widget_registry';
 import { ConfigProvider, DUIConfigProvider } from './page/config_provider';
 import { DUIPage, DUIPageProps, DUIPageController } from './page/page';
+import { DUIComponent } from './component/component';
+import { ComponentVirtualWidget } from './component/ComponentVirtualWidget';
 import { DUIAppState } from '../config/app_state/global_state';
 import { AppStateScopeContext } from '../config/app_state/app_state_scope_context';
 import { ActionExecutor } from '../framework/actions/action_executor';
@@ -104,10 +106,14 @@ export class DUIFactory {
 
         // Initialize widget registry with component builder
         this.widgetRegistry = new DefaultVirtualWidgetRegistry({
-            componentBuilder: (id, args) => this.createComponent(id, args),
-        });
+            componentBuilder: (id, args) => {
+                // Create the component element
+                const componentElement = this.createComponent(id, args);
 
-        // Initialize method binding registry for expression evaluation
+                // Wrap in ComponentVirtualWidget
+                return new ComponentVirtualWidget(componentElement);
+            },
+        });        // Initialize method binding registry for expression evaluation
         this.bindingRegistry = {}; // TODO: Implement MethodBindingRegistry
 
         // Initialize action execution context
@@ -140,17 +146,18 @@ export class DUIFactory {
                 ? new Map(
                     Object.entries(config.colorTokens).map(([key, value]) => [
                         key,
-                        as$<string>(value) ? ColorUtil.fromString(as$<string>(value)!) ?? null : null,
+                        ColorUtil.fromString(as$<string>(value)) ?? null,
                     ]).filter(([_, v]) => v !== null) as [string, string][]
                 )
                 : undefined,
             // Convert dark mode color tokens
             darkColors: config.darkColorTokens
                 ? new Map(
-                    Object.entries(config.darkColorTokens).map(([key, value]) => [
-                        key,
-                        as$<string>(value) ? ColorUtil.fromString(as$<string>(value)!) ?? null : null,
-                    ]).filter(([_, v]) => v !== null) as [string, string][]
+                    Object.entries(config.
+                        darkColorTokens).map(([key, value]) => [
+                            key,
+                            ColorUtil.fromString(as$<string>(value)) ?? null,
+                        ]).filter(([_, v]) => v !== null) as [string, string][]
                 )
                 : undefined,
         });
@@ -517,17 +524,11 @@ export class DUIFactory {
         args?: JsonLike
     ): React.ReactElement {
         if (this.configProvider.isPage(viewId)) {
+            console.log('Building page view for ID:', viewId, args);
             return this.createPage(viewId, args);
         }
-
-        // TODO: Return component when DUIComponent is implemented
-        const component = this.createComponent(viewId, args);
-        if (component) {
-            // Placeholder: wrap VirtualWidget in a React element
-            return React.createElement('div', {}, 'Component placeholder');
-        }
-
-        throw new Error(`View '${viewId}' not found`);
+        console.log('Building component view for ID:', viewId, args);
+        return this.createComponent(viewId, args) as React.ReactElement;
     }
 
     /**
@@ -540,7 +541,7 @@ export class DUIFactory {
      * @param componentId - Unique identifier for the component configuration
      * @param args - Arguments to pass to the component (accessible via expressions)
      * @param options - Optional resource overrides
-     * @returns A fully configured component widget
+     * @returns A fully configured component React element
      *
      * @example
      * ```typescript
@@ -564,15 +565,64 @@ export class DUIFactory {
             overrideColorTokens?: Record<string, string | null>;
             navigatorKey?: any;
         }
-    ): VirtualWidget | null {
-        // TODO: Implement DUIComponent when ready
+    ): React.ReactElement {
         // Merge overriding resources with existing resources
-        // Get component definition from configuration
-        // Wrap component with action executor
-        // Return DUIComponent instance
+        const mergedResources = new UIResources({
+            icons: this.resources.icons
+                ? new Map([...this.resources.icons, ...Object.entries(options?.overrideIcons ?? {})])
+                : undefined,
+            images: this.resources.images
+                ? new Map([...this.resources.images, ...Object.entries(options?.overrideImages ?? {})])
+                : undefined,
+            textStyles: this.resources.textStyles
+                ? new Map([...this.resources.textStyles, ...Object.entries(options?.overrideTextStyles ?? {})])
+                : undefined,
+            colors: this.resources.colors && options?.overrideColorTokens
+                ? new Map(
+                    [...this.resources.colors, ...Object.entries(options.overrideColorTokens)]
+                        .filter(([_, v]) => v !== null) as [string, string][]
+                )
+                : this.resources.colors,
+            darkColors: this.resources.darkColors,
+            fontFactory: this.resources.fontFactory,
+        });
 
-        console.warn(`DUIComponent is not yet implemented. Component '${componentId}' cannot be created.`);
-        return null;
+        // Get component definition from configuration
+        const componentDef = this.configProvider.getComponentDefinition(componentId);
+
+        // Get app state and create scope context
+        const appState = DUIAppState.instance;
+        const scope = new AppStateScopeContext({
+            values: appState.values,
+            variables: {
+                // TODO: Add standard library functions
+                // ...StdLibFunctions.functions,
+                ...DigiaUIManager.getInstance().jsVars,
+            },
+        });
+
+        // Wrap component with action executor provider
+        const actionExecutor = new ActionExecutor({
+            viewBuilder: (id: string, args?: JsonLike) => this._buildView(id, args),
+            bindingRegistry: this.bindingRegistry,
+        });
+
+        return React.createElement(
+            DefaultActionExecutor,
+            {
+                actionExecutor,
+                children: React.createElement(DUIComponent, {
+                    id: componentId,
+                    args,
+                    definition: componentDef,
+                    registry: this.widgetRegistry,
+                    resources: mergedResources,
+                    scope: scope as any,
+                    apiModels: this.configProvider.getAllApiModels(),
+                    navigatorKey: options?.navigatorKey,
+                })
+            }
+        );
     }
 
     /**
