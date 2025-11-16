@@ -1,196 +1,275 @@
-import React, { useEffect, useState } from 'react';
+// InternalImage.tsx
+import React, { useEffect, useState } from "react";
 import {
     View,
-    Image,
-    ImageSourcePropType,
-    ImageStyle,
-    StyleProp,
+    Image as RNImage,
     ActivityIndicator,
-    Text,
-    StyleSheet,
-} from 'react-native';
-import { RenderPayload } from '../../framework/render_payload';
-import { DefaultScopeContext } from '../../framework/expr/default_scope_context';
+    ImageRequireSource,
+    ImageURISource,
+    ImageResizeMode,
+    StyleProp,
+    ImageStyle,
+} from "react-native";
+import { SvgXml } from "react-native-svg";
+import { RenderPayload } from "../../framework/render_payload";
 
-export interface InternalImageProps {
-    imageSourceExpr?: any;
+interface InternalImageProps {
+    imageSourceExpr: any;
     payload: RenderPayload;
-    imageType?: string; // 'auto' | 'svg' | 'file' etc.
+    imageType?: string | null;
+    fit?: string;
+    alignment?: any;
+    svgColor?: string;
+    placeholderSrc?: any;
+    placeholderType?: string | null;
+    errorImage?: any;
     style?: StyleProp<ImageStyle>;
-    placeholderSrc?: string;
-    errorImage?: string | { errorSrc?: string };
+    imageAspectRatio?: number | null;
+    height?: number | null;
+    width?: number | null;
 }
 
-/**
- * InternalImage
- * - If imageType === 'file' or evaluated source looks like a local file (object with path/uri),
- *   render it directly without render-size based optimization.
- * - Otherwise render network/asset images normally.
- */
-export const InternalImage: React.FC<InternalImageProps> = ({
+/* Helpers */
+const hasSvgExtension = (s: any) => {
+    if (!s || typeof s !== "string") return false;
+    const v = s.trim().toLowerCase();
+    return v.startsWith("<svg") || v.startsWith("data:image/svg") || v.endsWith(".svg");
+};
+
+const mapFitToResizeMode = (fit?: string): ImageResizeMode => {
+    if (!fit) return "contain";
+    switch (fit.toLowerCase()) {
+        case "cover": return "cover";
+        case "fill":
+        case "stretch": return "stretch";
+        case "center":
+        case "none": return "center";
+        default: return "contain";
+    }
+};
+
+const normalizeSource = (
+    src: any
+): ImageRequireSource | ImageURISource | null => {
+    if (!src) return null;
+    if (typeof src === "number") return src;
+    if (typeof src === "string") return { uri: src };
+    if (src.uri) return { uri: src.uri };
+    if (src.url) return { uri: src.url };
+    return null;
+};
+
+/* Main Component */
+const InternalImage: React.FC<InternalImageProps> = ({
     imageSourceExpr,
     payload,
-    imageType,
-    style,
+    imageType = "auto",
+    fit = "contain",
+    svgColor,
     placeholderSrc,
     errorImage,
+    style,
+    imageAspectRatio,
+    height,
+    width,
 }) => {
+    const [aspectRatio, setAspectRatio] = useState<number | null>(imageAspectRatio ?? null);
+    const [svgXml, setSvgXml] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<any>(null);
-    const [source, setSource] = useState<ImageSourcePropType | null>(null);
-    const [isSvgSource, setIsSvgSource] = useState<boolean>(false);
+    const [hasError, setHasError] = useState<boolean>(false);
 
-    // Helper to detect file-like objects
-    const isFileLike = (v: any) => {
-        if (!v) return false;
-        if (typeof v === 'object') {
-            return !!(v.path || v.uri || v.filePath);
+    const evaluated =
+        payload && typeof payload.eval === "function"
+            ? payload.eval(imageSourceExpr)
+            : imageSourceExpr;
+
+    const actualImageType =
+        imageType === "auto"
+            ? hasSvgExtension(evaluated)
+                ? "svg"
+                : "image"
+            : imageType;
+
+    const applySvgColor = (xml: string, color?: string | null) => {
+        if (!color) return xml;
+        try {
+            return xml
+                .replace(/fill="[^"]*"/gi, `fill="${color}"`)
+                .replace(/stroke="[^"]*"/gi, `stroke="${color}"`);
+        } catch {
+            return xml;
         }
-        return false;
     };
 
+    /* Load image or svg */
     useEffect(() => {
+        let mounted = true;
         setLoading(true);
-        setError(null);
+        setHasError(false);
+        setSvgXml(null);
+        setAspectRatio(null);
 
-        try {
-            // Evaluate the image expression without render-dimensions for file detection
-            const raw = payload.eval<any>(imageSourceExpr);
+        const src = evaluated;
 
-            const declaredType = (imageType || 'auto').toLowerCase();
-
-            if (declaredType === 'file' || isFileLike(raw)) {
-                // If it's a file-like object, use its path/uri or pass through if it's already an ImageSource
-                if (typeof raw === 'string') {
-                    setSource({ uri: raw } as ImageSourcePropType);
-                } else if (raw && typeof raw === 'object') {
-                    const uri = raw.uri ?? raw.path ?? raw.filePath;
-                    if (uri) {
-                        setSource({ uri } as ImageSourcePropType);
-                    } else {
-                        // If the object already matches ImageSourcePropType (like {uri})
-                        setSource((raw as unknown) as ImageSourcePropType);
-                    }
-                } else {
-                    setSource(null);
-                }
+        if (!src) {
+            if (mounted) {
+                setAspectRatio(1);
                 setLoading(false);
-                // mark svg if declared as svg and it's a string uri
-                if (declaredType === 'svg') {
-                    if (typeof raw === 'string' && raw.trim().toLowerCase().endsWith('.svg')) {
-                        setIsSvgSource(true);
-                    }
-                }
-                return;
             }
-
-            // Non-file case: evaluate with optional render hints (we don't calculate size here)
-            const evaluated = payload.eval<any>(imageSourceExpr, {
-                scopeContext: new DefaultScopeContext({ variables: {} }),
-            });
-
-            if (typeof evaluated === 'string') {
-                // If it's a URL or an asset name
-                if (evaluated.startsWith('http') || evaluated.startsWith('file://') || evaluated.startsWith('content://')) {
-                    setSource({ uri: evaluated } as ImageSourcePropType);
-                    if ((imageType || '').toLowerCase() === 'svg' || evaluated.trim().toLowerCase().endsWith('.svg')) {
-                        setIsSvgSource(true);
-                    } else {
-                        setIsSvgSource(false);
-                    }
-                } else {
-                    // Treat as asset name — dynamic require isn't possible, use uri and hope RN resolves
-                    setSource({ uri: evaluated } as ImageSourcePropType);
-                    setIsSvgSource(false);
-                }
-            } else if (isFileLike(evaluated)) {
-                const uri = evaluated.uri ?? evaluated.path ?? evaluated.filePath;
-                setSource({ uri } as ImageSourcePropType);
-                setIsSvgSource(false);
-            } else if (evaluated && typeof evaluated === 'object') {
-                setSource((evaluated as unknown) as ImageSourcePropType);
-                setIsSvgSource(false);
-            } else {
-                setSource(null);
-                setIsSvgSource(false);
-            }
-
-            setLoading(false);
-        } catch (err) {
-            setError(err);
-            setLoading(false);
+            return () => { mounted = false; };
         }
-    }, [imageSourceExpr, payload, imageType]);
 
-    if (loading) {
-        if (placeholderSrc) {
+        // Inline SVG
+        if (actualImageType === "svg" && typeof src === "string" && src.startsWith("<svg")) {
+            if (mounted) {
+                setSvgXml(applySvgColor(src, svgColor));
+                setAspectRatio(1);
+                setLoading(false);
+            }
+            return () => { mounted = false; };
+        }
+
+        // Remote SVG
+        const uri = typeof src === "string" ? src : src?.uri || src?.url;
+        const isRemoteSvg = actualImageType === "svg" && typeof uri === "string" && uri.endsWith(".svg");
+
+        if (isRemoteSvg) {
+            fetch(uri)
+                .then(r => r.text())
+                .then(text => {
+                    if (!mounted) return;
+                    setSvgXml(applySvgColor(text, svgColor));
+                    setAspectRatio(1);
+                    setLoading(false);
+                })
+                .catch(() => {
+                    if (mounted) {
+                        setHasError(true);
+                        setLoading(false);
+                    }
+                });
+            return () => { mounted = false; };
+        }
+
+        // Normal images
+        if (typeof src === "number") {
+            const resolved = RNImage.resolveAssetSource(src);
+            if (resolved?.width && resolved.height) {
+                if (mounted) {
+                    setAspectRatio(resolved.width / resolved.height);
+                    setLoading(false);
+                }
+            }
+            return () => { mounted = false; };
+        }
+
+        if (uri) {
+            RNImage.getSize(
+                uri,
+                (w, h) => {
+                    if (!mounted) return;
+                    setAspectRatio(w / h);
+                    setLoading(false);
+                },
+                () => {
+                    if (mounted) {
+                        setAspectRatio(1);
+                        setLoading(false);
+                        setHasError(true);
+                    }
+                }
+            );
+        }
+
+        return () => { mounted = false; };
+    }, [evaluated, actualImageType, svgColor]);
+
+    /* Placeholder when loading */
+    if (loading && placeholderSrc) {
+        const n = normalizeSource(placeholderSrc);
+        if (typeof placeholderSrc === "string" && placeholderSrc.startsWith("<svg")) {
             return (
-                <Image source={{ uri: placeholderSrc }} style={[styles.image, style]} />
+                <View style={[{ width: width ?? "100%", aspectRatio: aspectRatio ?? 1 }, style]}>
+                    <SvgXml xml={placeholderSrc} width="100%" height="100%" />
+                </View>
             );
         }
         return (
-            <View style={[styles.center, style as any]}>
-                <ActivityIndicator />
-            </View>
+            <RNImage
+                source={n!}
+                style={[{ width: width ?? "100%", aspectRatio: aspectRatio ?? 1 }, style]}
+                resizeMode={mapFitToResizeMode(fit)}
+            />
         );
     }
 
-    if (error) {
-        // show errorImage or text in debug
-        let errSrc: string | undefined;
-        if (typeof errorImage === 'string') errSrc = errorImage;
-        else if (errorImage && typeof errorImage === 'object') errSrc = (errorImage as any).errorSrc;
-
-        if (errSrc) {
-            return <Image source={{ uri: errSrc }} style={[styles.image, style]} />;
+    /* SVG */
+    if (actualImageType === "svg") {
+        if (!svgXml) {
+            if (hasError && errorImage) {
+                return (
+                    <RNImage
+                        source={normalizeSource(errorImage)!}
+                        style={[{ width: width ?? "100%", aspectRatio: aspectRatio ?? 1 }, style]}
+                        resizeMode="contain"
+                    />
+                );
+            }
+            return <View style={[{ width: width ?? "100%", aspectRatio: 1 }, style]} />;
         }
 
         return (
-            <View style={[styles.center, style as any]}>
-                <Text style={{ color: 'red' }}>{String(error)}</Text>
+            <View style={[{ width: width ?? "100%", aspectRatio: aspectRatio ?? 1 }, style]}>
+                <SvgXml xml={svgXml} width="100%" height="100%" />
             </View>
         );
     }
 
-    if (!source) {
-        return <View style={[styles.center, style as any]} />;
-    }
-    // If the source is an SVG (either declared or by uri), try to render using react-native-svg's SvgUri.
-    const uri = (source as any)?.uri;
-    const looksLikeSvg = isSvgSource || (typeof uri === 'string' && String(uri).toLowerCase().endsWith('.svg'));
-
-    if (looksLikeSvg) {
-        try {
-            // Try to require react-native-svg at runtime. This avoids a hard peer dependency.
-            // If not present, fall back to the regular Image component.
-            // Note: typing is intentionally `any` to avoid build-time type dependency.
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const SvgModule: any = require('react-native-svg');
-            const SvgUri = SvgModule?.SvgUri || SvgModule?.default?.SvgUri;
-            if (SvgUri) {
-                // SvgUri expects width/height; use 100% to fill container
-                return (
-                    <View style={[styles.image, style as any]}>
-                        <SvgUri uri={uri} width="100%" height="100%" />
-                    </View>
-                );
-            }
-        } catch (e) {
-            // ignore - we'll fall back to Image below
-        }
-    }
+    /* Normal Image */
+    const imgSrc = normalizeSource(evaluated);
+    if (!imgSrc) return null;
 
     return (
-        <Image
-            source={source}
-            style={[styles.image, style]}
-            onError={(e) => setError(e.nativeEvent)}
-            resizeMode={(style as any)?.resizeMode ?? 'cover'}
-        />
+        <View style={[{ width: width ?? "100%", overflow: "hidden" }, style]}>
+            <RNImage
+                source={imgSrc}
+                style={{ width: "100%", height: "100%", alignSelf: 'center', aspectRatio: aspectRatio ?? 1, }}
+                resizeMode={mapFitToResizeMode(fit)}
+                onLoad={() => {
+                    setLoading(false);
+                    setHasError(false);
+                }}
+                onError={() => {
+                    setLoading(false);
+                    setHasError(true);
+                }}
+            />
+
+            {/* Error Image */}
+            {hasError && errorImage ? (
+                <View style={{
+                    position: "absolute", left: 0, top: 0, right: 0, bottom: 0,
+                    alignItems: "center", justifyContent: "center"
+                }}>
+                    <RNImage
+                        source={normalizeSource(errorImage)!}
+                        style={{ width: 40, height: 40 }}
+                        resizeMode="contain"
+                    />
+                </View>
+            ) : null}
+
+            {/* Loading overlay */}
+            {loading ? (
+                <View style={{
+                    position: "absolute", left: 0, top: 0, right: 0, bottom: 0,
+                    alignItems: "center", justifyContent: "center"
+                }}>
+                    <ActivityIndicator />
+                </View>
+            ) : null}
+        </View>
     );
 };
 
-const styles = StyleSheet.create({
-    image: { width: '100%', },
-    center: { justifyContent: 'center', alignItems: 'center' },
-});
+export default InternalImage;

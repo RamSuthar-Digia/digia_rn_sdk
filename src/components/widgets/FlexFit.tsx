@@ -1,9 +1,11 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Text as RNText } from 'react-native';
 import { VirtualStatelessWidget } from '../base/VirtualStatelessWidget';
 import { VirtualWidget } from '../base/VirtualWidget';
 import { RenderPayload } from '../../framework/render_payload';
 import { FlexFitProps } from '../widget_props/flex_fit_props';
+import { Props } from '../../framework/models/props';
+import { useConstraints, LayoutProvider } from '../../framework/utils/react-native-constraint-system';
 
 /**
  * VWFlexFit
@@ -14,7 +16,7 @@ export class VWFlexFit extends VirtualStatelessWidget<FlexFitProps> {
     constructor(options: {
         props: FlexFitProps;
         parent?: VirtualWidget;
-        parentProps?: any;
+        parentProps?: Props;
         refName?: string;
         childGroups?: Map<string, VirtualWidget[]>;
         commonProps?: any;
@@ -29,28 +31,43 @@ export class VWFlexFit extends VirtualStatelessWidget<FlexFitProps> {
         const flexFitType = this.props.flexFitType ?? undefined;
         const flexValue = this.props.flexValue ?? 1;
 
-        const childElement = child.toWidget(payload) as React.ReactElement;
+        // Wrap in functional component to use constraints hook
+        const FlexFitContent = () => {
+            const ctx = useConstraints();
+            const childElement = child.toWidget(payload) as React.ReactElement;
+            const maxWidth = ctx?.constraints.maxWidth;
 
-        if (flexFitType === 'tight') {
-            // Expanded: make child fill available space
-            return (
-                <View style={{ flex: flexValue }}>
-                    {childElement}
-                </View>
-            );
-        }
+            if (flexFitType === 'tight') {
+                // Expanded: make child fill available space
+                // Apply maxWidth constraint to prevent overflow
+                return (
+                    <View style={{
+                        flex: flexValue,
+                        maxWidth: maxWidth && isFinite(maxWidth) ? maxWidth : undefined,
+                    }}>
+                        {childElement}
+                    </View>
+                );
+            }
 
-        if (flexFitType === 'loose') {
-            // Flexible (loose): allow child to size itself but give it flexGrow
-            // use flexGrow so child may keep intrinsic size when not stretching
-            return (
-                <View style={{ flexGrow: flexValue, flexShrink: 1 }}>
-                    {childElement}
-                </View>
-            );
-        }
+            if (flexFitType === 'loose') {
+                // Flexible (loose): allow child to size itself but give it flexGrow
+                // Apply maxWidth constraint to prevent overflow
+                return (
+                    <View style={{
+                        flexGrow: flexValue,
+                        flexShrink: 1,
+                        maxWidth: maxWidth && isFinite(maxWidth) ? maxWidth : undefined,
+                    }}>
+                        {childElement}
+                    </View>
+                );
+            }
 
-        // No flex behavior requested
-        return childElement;
+            // No flex behavior requested
+            return childElement;
+        };
+
+        return <FlexFitContent />;
     }
 }

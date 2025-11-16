@@ -1,13 +1,11 @@
 import { VirtualWidget } from './base/VirtualWidget';
 import { VWNodeData, VWData, VWStateData, VWComponentData } from '../framework/models/vw_data';
-import { VWText } from './widgets/text';
-import { RenderPayload } from '../framework/render_payload';
-import { TextPropsClass } from './widget_props/text_props';
-import { textBuilder, createChildGroups } from './builders';
+import { textBuilder, createChildGroups, buttonBuilder, navigationBarBuilder, containerBuilder, carouselBuilder } from './builders';
 import { scaffoldBuilder, rowBuilder, columnBuilder, iconBuilder, imageBuilder } from './builders';
 import { VirtualStateContainerWidget } from './base/VirtualStateContainerWidget';
 import { VirtualBuilderWidget } from './base/VirtualBuilderWidget';
 import { JsonLike } from '../framework/utils/types';
+import React from 'react';
 
 /**
  * Factory function type for creating virtual widgets from VWNodeData.
@@ -25,7 +23,7 @@ export type VirtualWidgetBuilder = (
 export type ComponentBuilder = (
     componentId: string,
     args?: Record<string, any>
-) => VirtualWidget | null;
+) => React.ReactElement | null;
 
 /**
  * Registry interface for virtual widget types.
@@ -116,6 +114,12 @@ export class DefaultVirtualWidgetRegistry implements VirtualWidgetRegistry {
             ['digia/row', rowBuilder as VirtualWidgetBuilder],
             ['digia/icon', iconBuilder as VirtualWidgetBuilder],
             ['digia/image', imageBuilder as VirtualWidgetBuilder],
+            ['digia/button', buttonBuilder as VirtualWidgetBuilder],
+            ['digia/navigationbar', navigationBarBuilder as VirtualWidgetBuilder],
+            ['digia/container', containerBuilder as VirtualWidgetBuilder],
+            [
+                'digia/carousel', carouselBuilder as VirtualWidgetBuilder
+            ]
         ]);
     }
 
@@ -158,7 +162,7 @@ export class DefaultVirtualWidgetRegistry implements VirtualWidgetRegistry {
                         ? Object.fromEntries(
                             Array.from(data.args.entries()).map(([k, v]) => [
                                 k,
-                                v?.evaluate(payload.scopeContext),
+                                v?.evaluate(payload.context.scopeContext),
                             ])
                         )
                         : undefined;
@@ -169,11 +173,11 @@ export class DefaultVirtualWidgetRegistry implements VirtualWidgetRegistry {
                         throw new Error(`Component not found: ${data.id}`);
                     }
 
-                    return component.toWidget(payload);
+                    return component;
                 },
                 {
                     commonProps: data.commonProps,
-                    parentProps: data.parentProps.value,
+                    parentProps: data.parentProps,
                     parent,
                     refName: data.refName,
                     extendHierarchy: false,

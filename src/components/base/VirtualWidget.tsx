@@ -1,5 +1,6 @@
 import React from 'react';
 import { RenderPayload } from '../../framework/render_payload';
+import { Props } from '../../framework/models/props';
 
 /**
  * Base class for all virtual widgets in the Digia RN SDK.
@@ -14,7 +15,7 @@ import { RenderPayload } from '../../framework/render_payload';
 export abstract class VirtualWidget {
   readonly refName?: string;
   private readonly _parent?: WeakRef<VirtualWidget>;
-  parentProps?: any;
+  parentProps?: Props;
 
   /**
    * Gets the parent widget (may be undefined if garbage collected).
@@ -26,7 +27,7 @@ export abstract class VirtualWidget {
   constructor(options: {
     refName?: string;
     parent?: VirtualWidget;
-    parentProps?: any;
+    parentProps?: Props;
   }) {
     this.refName = options.refName;
     this._parent = options.parent ? new WeakRef(options.parent) : undefined;

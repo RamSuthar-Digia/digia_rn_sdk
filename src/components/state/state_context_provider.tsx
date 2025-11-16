@@ -1,6 +1,5 @@
 import React, { createContext, useContext } from 'react';
 import { StateContext } from './state_context';
-
 /**
  * React Context for providing StateContext throughout the component tree.
  * 
@@ -125,17 +124,6 @@ export function useRequiredStateContext(): StateContext {
  */
 export class StateContextHelper {
   /**
-   * Retrieves the immediate StateContext from the component tree.
-   * 
-   * @deprecated Use useStateContext() hook instead
-   */
-  static getImmediateState(): StateContext | null {
-    // This cannot be implemented as a static method in React
-    // Use useStateContext() hook instead
-    throw new Error('Use useStateContext() hook instead of static method');
-  }
-
-  /**
    * Finds a StateContext with the specified namespace.
    * 
    * @param context - The StateContext to search from
@@ -154,10 +142,12 @@ export class StateContextHelper {
    * ```
    */
   static findStateByName(
-    context: StateContext,
+    stateContext: StateContext | null,
     namespace: string
-  ): StateContext | undefined {
-    return context.findAncestorContext(namespace);
+  ): StateContext | null {
+    const ctx = stateContext;
+    if (!ctx) return null;
+    return ctx.findAncestorContext(namespace) ?? null;
   }
 
   /**
@@ -174,7 +164,13 @@ export class StateContextHelper {
    * }
    * ```
    */
-  static getOriginState(context: StateContext): StateContext {
-    return context.originContext;
+  static getOriginState(
+    stateContext: StateContext | null
+  ): StateContext {
+    const ctx = stateContext;
+    if (!ctx) {
+      throw new Error('No StateContext found in component tree');
+    }
+    return ctx.originContext;
   }
 }

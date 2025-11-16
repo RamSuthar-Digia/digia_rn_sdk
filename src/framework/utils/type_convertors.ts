@@ -240,66 +240,248 @@ export class To {
         }
     }
 
-    // Spacing and padding
-    static edgeInsets(value: any, defaultValue: any = 0): number | string | { paddingTop?: number, paddingRight?: number, paddingBottom?: number, paddingLeft?: number } {
+    /**
+     * Map a BoxFit-like value to a ResizeMode used in React Native.
+     * Mirrors the Dart switch-expression:
+     *   'fill' -> BoxFit.fill
+     *   'contain' -> BoxFit.contain
+     *   'cover' -> BoxFit.cover
+     *   'fitWidth' -> BoxFit.fitWidth
+     *   'fitHeight' -> BoxFit.fitHeight
+     *   'scaleDown' -> BoxFit.scaleDown
+     *   _ -> BoxFit.none
+     *
+     * We map those to RN ResizeMode values; default maps to 'center' (approx BoxFit.none).
+     */
+    static boxFit(value: any): ResizeMode {
+        switch (value) {
+            case 'fill':
+                return 'stretch';
+            case 'contain':
+                return 'contain';
+            case 'cover':
+                return 'cover';
+            case 'fitWidth':
+                return 'contain';
+            case 'fitHeight':
+                return 'contain';
+            case 'scaleDown':
+                return 'contain';
+            default:
+                return 'center';
+        }
+    }
+
+    // Spacing and margin
+    static margin(value: any, defaultValue: any = 0): { marginTop?: number, marginRight?: number, marginBottom?: number, marginLeft?: number } {
         if (value == null) return defaultValue;
 
         // Handle array input
         if (Array.isArray(value)) {
             const values = value.map(e => NumUtil.toDouble(e) ?? 0);
-            if (values.length === 1) return values[0];
+            if (values.length === 1) return {
+                marginTop: values[0],
+                marginRight: values[0],
+                marginBottom: values[0],
+                marginLeft: values[0]
+            };
             if (values.length === 2) {
                 return {
-                    paddingTop: values[0],
-                    paddingBottom: values[0],
-                    paddingLeft: values[1],
-                    paddingRight: values[1]
+                    marginTop: values[0],
+                    marginBottom: values[0],
+                    marginLeft: values[1],
+                    marginRight: values[1]
                 };
             }
             if (values.length === 4) {
                 return {
-                    paddingTop: values[1],
-                    paddingRight: values[2],
-                    paddingBottom: values[3],
-                    paddingLeft: values[0]
+                    marginTop: values[1],
+                    marginRight: values[2],
+                    marginBottom: values[3],
+                    marginLeft: values[0]
                 };
             }
-            return defaultValue;
+            return {
+                marginTop: defaultValue,
+                marginRight: defaultValue,
+                marginBottom: defaultValue,
+                marginLeft: defaultValue
+            };
         }
 
         // Handle string input (comma-separated)
         if (typeof value === 'string') {
             const values = value.split(',').map(e => NumUtil.toDouble(e) ?? 0);
-            if (values.length === 1) return values[0];
+            if (values.length === 1) return {
+                marginTop: values[0],
+                marginRight: values[0],
+                marginBottom: values[0],
+                marginLeft: values[0]
+            };
             if (values.length === 2) {
                 return {
-                    paddingTop: values[0],
-                    paddingBottom: values[0],
-                    paddingLeft: values[1],
-                    paddingRight: values[1]
+                    marginTop: values[0],
+                    marginBottom: values[0],
+                    marginLeft: values[1],
+                    marginRight: values[1]
                 };
             }
             if (values.length === 4) {
                 return {
-                    paddingTop: values[1],
-                    paddingRight: values[2],
-                    paddingBottom: values[3],
-                    paddingLeft: values[0]
+                    marginTop: values[1],
+                    marginRight: values[2],
+                    marginBottom: values[3],
+                    marginLeft: values[0]
                 };
             }
-            return defaultValue;
+            return {
+                marginTop: defaultValue,
+                marginRight: defaultValue,
+                marginBottom: defaultValue,
+                marginLeft: defaultValue
+            };
         }
 
         // Handle single number
         if (typeof value === 'number') {
-            return value;
+            return {
+                marginTop: value,
+                marginRight: value,
+                marginBottom: value,
+                marginLeft: value
+            };
         }
 
         // Handle object input
         if (typeof value === 'object') {
             // Check for 'all' key
             if (value.all != null) {
-                return NumUtil.toDouble(value.all) ?? defaultValue;
+                return {
+                    marginTop: NumUtil.toDouble(value.all) ?? defaultValue,
+                    marginRight: NumUtil.toDouble(value.all) ?? defaultValue,
+                    marginBottom: NumUtil.toDouble(value.all) ?? defaultValue,
+                    marginLeft: NumUtil.toDouble(value.all) ?? defaultValue
+                };
+            }
+
+            // Check for symmetric margin
+            if (value.horizontal != null && value.vertical != null) {
+                return {
+                    marginTop: NumUtil.toDouble(value.vertical) ?? 0,
+                    marginBottom: NumUtil.toDouble(value.vertical) ?? 0,
+                    marginLeft: NumUtil.toDouble(value.horizontal) ?? 0,
+                    marginRight: NumUtil.toDouble(value.horizontal) ?? 0
+                };
+            }
+
+            // Individual margin
+            return {
+                marginTop: NumUtil.toDouble(value.top) ?? 0,
+                marginRight: NumUtil.toDouble(value.right) ?? 0,
+                marginBottom: NumUtil.toDouble(value.bottom) ?? 0,
+                marginLeft: NumUtil.toDouble(value.left) ?? 0
+            };
+        }
+
+        return {
+            marginTop: defaultValue,
+            marginRight: defaultValue,
+            marginBottom: defaultValue,
+            marginLeft: defaultValue
+        };
+    }
+
+    // Spacing and padding
+    static padding(value: any, defaultValue: any = 0): { paddingTop?: number, paddingRight?: number, paddingBottom?: number, paddingLeft?: number } {
+        if (value == null) return defaultValue;
+
+
+        // Handle array input
+        if (Array.isArray(value)) {
+            const values = value.map(e => NumUtil.toDouble(e) ?? 0);
+            if (values.length === 1) return {
+                paddingTop: values[0],
+                paddingRight: values[0],
+                paddingBottom: values[0],
+                paddingLeft: values[0]
+            };
+            if (values.length === 2) {
+                return {
+                    paddingTop: values[0],
+                    paddingBottom: values[0],
+                    paddingLeft: values[1],
+                    paddingRight: values[1]
+                };
+            }
+            if (values.length === 4) {
+                return {
+                    paddingTop: values[1],
+                    paddingRight: values[2],
+                    paddingBottom: values[3],
+                    paddingLeft: values[0]
+                };
+            }
+            return {
+                paddingTop: defaultValue,
+                paddingRight: defaultValue,
+                paddingBottom: defaultValue,
+                paddingLeft: defaultValue
+            };
+        }
+
+        // Handle string input (comma-separated)
+        if (typeof value === 'string') {
+            const values = value.split(',').map(e => NumUtil.toDouble(e) ?? 0);
+            if (values.length === 1) return {
+                paddingTop: values[0],
+                paddingRight: values[0],
+                paddingBottom: values[0],
+                paddingLeft: values[0]
+            };
+            if (values.length === 2) {
+                return {
+                    paddingTop: values[0],
+                    paddingBottom: values[0],
+                    paddingLeft: values[1],
+                    paddingRight: values[1]
+                };
+            }
+            if (values.length === 4) {
+                return {
+                    paddingTop: values[1],
+                    paddingRight: values[2],
+                    paddingBottom: values[3],
+                    paddingLeft: values[0]
+                };
+            }
+            return {
+                paddingTop: defaultValue,
+                paddingRight: defaultValue,
+                paddingBottom: defaultValue,
+                paddingLeft: defaultValue
+            };
+        }
+
+        // Handle single number
+        if (typeof value === 'number') {
+            return {
+                paddingTop: value,
+                paddingRight: value,
+                paddingBottom: value,
+                paddingLeft: value
+            };
+        }
+
+        // Handle object input
+        if (typeof value === 'object') {
+            // Check for 'all' key
+            if (value.all != null) {
+                return {
+                    paddingTop: NumUtil.toDouble(value.all) ?? defaultValue,
+                    paddingRight: NumUtil.toDouble(value.all) ?? defaultValue,
+                    paddingBottom: NumUtil.toDouble(value.all) ?? defaultValue,
+                    paddingLeft: NumUtil.toDouble(value.all) ?? defaultValue
+                };
             }
 
             // Check for symmetric padding
@@ -321,7 +503,12 @@ export class To {
             };
         }
 
-        return defaultValue;
+        return {
+            paddingTop: defaultValue,
+            paddingRight: defaultValue,
+            paddingBottom: defaultValue,
+            paddingLeft: defaultValue
+        };
     }
 
     // Keyboard types
@@ -380,12 +567,17 @@ export class To {
     }
 
     // Border radius
-    static borderRadius(value: any, defaultValue: any = 0): number | object {
+    static borderRadius(value: any, defaultValue: any = 0): object {
         if (value == null) return defaultValue;
 
         if (Array.isArray(value)) {
             const values = value.map(e => NumUtil.toDouble(e) ?? 0);
-            if (values.length === 1) return values[0];
+            if (values.length === 1) return {
+                borderTopLeftRadius: values[0],
+                borderTopRightRadius: values[0],
+                borderBottomRightRadius: values[0],
+                borderBottomLeftRadius: values[0]
+            };
             if (values.length === 4) {
                 return {
                     borderTopLeftRadius: values[0],
@@ -394,12 +586,22 @@ export class To {
                     borderBottomLeftRadius: values[3]
                 };
             }
-            return defaultValue;
+            return {
+                borderTopLeftRadius: defaultValue,
+                borderTopRightRadius: defaultValue,
+                borderBottomRightRadius: defaultValue,
+                borderBottomLeftRadius: defaultValue
+            };
         }
 
         if (typeof value === 'string') {
             const values = value.split(',').map(e => NumUtil.toDouble(e) ?? 0);
-            if (values.length === 1) return values[0];
+            if (values.length === 1) return {
+                borderTopLeftRadius: values[0],
+                borderTopRightRadius: values[0],
+                borderBottomRightRadius: values[0],
+                borderBottomLeftRadius: values[0]
+            };
             if (values.length === 4) {
                 return {
                     borderTopLeftRadius: values[0],
@@ -408,11 +610,21 @@ export class To {
                     borderBottomLeftRadius: values[3]
                 };
             }
-            return defaultValue;
+            return {
+                borderTopLeftRadius: defaultValue,
+                borderTopRightRadius: defaultValue,
+                borderBottomRightRadius: defaultValue,
+                borderBottomLeftRadius: defaultValue
+            };
         }
 
         if (typeof value === 'number') {
-            return value;
+            return {
+                borderTopLeftRadius: value,
+                borderTopRightRadius: value,
+                borderBottomRightRadius: value,
+                borderBottomLeftRadius: value
+            };
         }
 
         if (typeof value === 'object') {

@@ -71,7 +71,7 @@ export class VirtualStateContainerWidget extends VirtualWidget {
         // Create initial state values from variable definitions
         const initialState = DataTypeCreator.createMany(
             this.initStateDefs,
-            payload.scopeContext
+            payload.context.scopeContext
         );
 
         return (
@@ -110,9 +110,9 @@ const StateContainerRenderer: React.FC<{
         return new StateScopeContext({
             stateContext,
             variables: {},
-            enclosing: payload.scopeContext,
+            enclosing: payload.context.scopeContext,
         });
-    }, [stateContext, payload.scopeContext]);
+    }, [stateContext, payload.context.scopeContext]);
 
     // Create updated payload with new scope context
     const updatedPayload = React.useMemo(() => {

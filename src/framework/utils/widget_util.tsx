@@ -1,324 +1,220 @@
 import React from 'react';
-import { View, TouchableOpacity, ViewStyle, DimensionValue } from 'react-native';
+import {
+    View,
+    TouchableOpacity,
+    ViewStyle,
+    SafeAreaView,
+    DimensionValue,
+} from 'react-native';
 import { RenderPayload } from '../render_payload';
-import { CommonStyle } from '../models/common_props';
+import { CommonProps, CommonStyle } from '../models/common_props';
 import { ActionFlow } from '../actions/base/action_flow';
 import { To } from './type_convertors';
 import { as$ } from './functional_utils';
 import { JsonLike } from './types';
 import { NumUtil } from './num_util';
+import { LayoutProvider, useConstraints, BoxConstraints } from './react-native-constraint-system';
+
+type WrapOptions = {
+    payload: RenderPayload;
+    style?: CommonProps | null;
+    aspectRatio?: number | null;
+    child: React.ReactNode;
+    actionFlow?: ActionFlow | null;
+    /** If true, wraps content with LayoutProvider to provide constraints to children */
+    provideConstraints?: boolean;
+};
 
 /**
- * Wraps a child component in a container with styling applied.
+ * Unified widget wrapper – merges container, alignment, aspectRatio & gesture logic.
  * 
- * Applies padding, background color, borders, border radius, and sizing
- * based on the CommonStyle properties.
- * 
- * @param options - Configuration options
- * @returns Wrapped React component
- * 
- * @example
- * ```tsx
- * const wrapped = wrapInContainer({
- *   payload,
- *   style: commonStyle,
- *   child: <Text>Content</Text>
- * });
- * ```
+ * Integration with Constraint System:
+ * - Set provideConstraints=true to wrap with LayoutProvider (for containers that have children)
+ * - Children can use useConstraints() hook to access parent constraints
  */
-export function wrapInContainer(options: {
-    payload: RenderPayload;
-    style?: CommonStyle | null;
-    child: React.ReactNode;
-}): React.ReactElement {
-    const { payload, style, child } = options;
+export function wrapWidget({
+    payload,
+    style,
+    aspectRatio,
+    child,
+    actionFlow,
+    provideConstraints = true,
+}: WrapOptions): React.ReactElement {
+    const mergedStyle: ViewStyle = {};
 
-    if (style == null) {
-        return <>{child}</>;
-    }
+    if (style) {
+        // 🟠 Padding
+        const padding = To.padding(style.style?.padding);
+        if (typeof padding === 'object') Object.assign(mergedStyle, padding);
+        else if (typeof padding === 'number') mergedStyle.padding = padding;
 
-    const containerStyle: ViewStyle = {};
+        // 🟣 Margin
+        const margin = To.margin(style.style?.margin);
+        if (typeof margin === 'object') Object.assign(mergedStyle, margin);
+        else if (typeof margin === 'number') mergedStyle.margin = margin;
 
-    // Apply padding
-    const padding = To.edgeInsets(style.padding);
-    if (typeof padding === 'object' && padding !== null) {
-        Object.assign(containerStyle, padding);
-    } else if (typeof padding === 'number') {
-        containerStyle.padding = padding;
-    }
-
-    // Apply background color
-    const bgColor = style.bgColor?.evaluate(payload.scopeContext);
-    if (bgColor) {
-        const color = payload.getColor(bgColor);
-        if (color) {
-            containerStyle.backgroundColor = color;
+        // 🟢 Background
+        const bgColor = style.style?.bgColor?.evaluate(payload.context.scopeContext);
+        if (bgColor) {
+            const color = payload.getColor(bgColor);
+            if (color) mergedStyle.backgroundColor = color;
         }
-    }
 
-    // Apply border radius
-    const borderRadius = To.borderRadius(style.borderRadius);
-    if (typeof borderRadius === 'object' && borderRadius !== null) {
-        Object.assign(containerStyle, borderRadius);
-    } else if (typeof borderRadius === 'number') {
-        containerStyle.borderRadius = borderRadius;
-    }
+        // 🔵 Border radius
+        const radius = To.borderRadius(style.style?.borderRadius);
+        if (typeof radius === 'object') Object.assign(mergedStyle, radius);
+        else if (typeof radius === 'number') mergedStyle.borderRadius = radius;
 
-    // Apply border
-    const border = style.border;
-    if (border) {
-        const borderType = as$<JsonLike>(
-            border['borderType'],
-            (v): v is JsonLike => typeof v === 'object' && v !== null && !Array.isArray(v)
-        );
-        const borderColor = border['borderColor'];
-        const borderWidth = NumUtil.toDouble(border['borderWidth']);
-        const borderPattern = as$<string>(
-            borderType?.['borderPattern'],
-            (v): v is string => typeof v === 'string'
-        );
-
-        if (borderPattern === 'solid' && borderWidth != null && borderWidth > 0) {
-            const color = payload.evalColor(borderColor);
-            if (color) {
-                containerStyle.borderColor = color;
-                containerStyle.borderWidth = borderWidth;
-                containerStyle.borderStyle = 'solid';
+        // 🟣 Border
+        const border = style.style?.border;
+        if (border) {
+            const borderType = as$<JsonLike>(
+                border['borderType'],
+                (v): v is JsonLike =>
+                    typeof v === 'object' && v !== null && !Array.isArray(v)
+            );
+            const borderColor = border['borderColor'];
+            const borderWidth = NumUtil.toDouble(border['borderWidth']);
+            const borderPattern = as$<string>(
+                borderType?.['borderPattern'],
+                (v): v is string => typeof v === 'string'
+            );
+            if (borderPattern === 'solid' && borderWidth && borderWidth > 0) {
+                const color = payload.evalColor(borderColor);
+                if (color) {
+                    mergedStyle.borderColor = color;
+                    mergedStyle.borderWidth = borderWidth;
+                    mergedStyle.borderStyle = 'solid';
+                }
             }
         }
-        // Note: React Native doesn't support dashed/dotted borders natively
-        // For advanced border patterns, you'd need react-native-svg or similar
+
+        // 🟤 Sizing
+        Object.assign(mergedStyle, _applySizing(mergedStyle, style.style ?? {}, payload));
+
+        // ⚫ Alignment
+        const alignment = To.alignment(style.align);
+        if (alignment) {
+            mergedStyle.justifyContent = alignment.justifyContent;
+            mergedStyle.alignItems = alignment.alignItems;
+            mergedStyle.alignSelf = alignment.alignSelf;
+        }
+
     }
+    if (aspectRatio) mergedStyle.aspectRatio = aspectRatio;
 
-    // Apply sizing
-    const sizedStyle = _applySizing(containerStyle, style, payload);
 
-    return (
-        <View style={sizedStyle}>
-            {child}
-        </View>
+    // 🟩 Safe Area
+    const content = (
+        child
     );
-}
 
-/**
- * Wraps a child component in a touchable component for handling actions.
- * 
- * Uses TouchableOpacity for touch feedback when actionFlow is present.
- * 
- * @param options - Configuration options
- * @returns Wrapped React component
- * 
- * @example
- * ```tsx
- * const wrapped = wrapInGestureDetector({
- *   payload,
- *   actionFlow,
- *   child: <Text>Click me</Text>
- * });
- * ```
- */
-export function wrapInGestureDetector(options: {
-    payload: RenderPayload;
-    actionFlow?: ActionFlow | null;
-    child: React.ReactNode;
-    borderRadius?: number;
-}): React.ReactElement {
-    const { payload, actionFlow, child, borderRadius } = options;
+    // 🟥 Action Flow (Tap)
+    if (actionFlow && actionFlow.actions.length > 0) {
+        const handlePress = () => {
+            payload.executeAction(actionFlow, { triggerType: 'onTap' });
+        };
 
-    if (actionFlow == null || actionFlow.actions.length === 0) {
-        return <>{child}</>;
-    }
-
-    const handlePress = () => {
-        payload.executeAction(actionFlow, {
-            triggerType: 'onTap',
-        });
-    };
-
-    // In React Native, we use TouchableOpacity for feedback
-    // inkwell property controls whether to show opacity feedback
-    if (actionFlow.inkwell) {
-        return (
+        const touchable = (
             <TouchableOpacity
                 onPress={handlePress}
-                activeOpacity={0.7}
-                style={borderRadius ? { borderRadius } : undefined}
+                activeOpacity={actionFlow.inkwell ? 0.7 : 1}
+                style={mergedStyle}
             >
-                {child}
+                {content}
             </TouchableOpacity>
         );
-    } else {
+
+        return provideConstraints ? (
+            <LayoutProvider style={mergedStyle}>
+                <TouchableOpacity
+                    onPress={handlePress}
+                    activeOpacity={actionFlow.inkwell ? 0.7 : 1}
+                // style={{ flex: 1 }}
+                >
+                    {content}
+                </TouchableOpacity>
+            </LayoutProvider>
+        ) : touchable;
+    }
+
+    // 🟦 Normal View (Single Layer)
+    if (provideConstraints) {
         return (
-            <TouchableOpacity
-                onPress={handlePress}
-                activeOpacity={1} // No visual feedback
-            >
-                {child}
-            </TouchableOpacity>
+            <LayoutProvider style={mergedStyle}>
+                {content}
+            </LayoutProvider>
         );
     }
+
+    return <View style={{ ...mergedStyle, }}>{content}</View>;
 }
 
-/**
- * Wraps a child component with alignment.
- * 
- * @param options - Configuration options
- * @returns Wrapped React component
- * 
- * @example
- * ```tsx
- * const wrapped = wrapInAlign({
- *   value: 'center',
- *   child: <Text>Centered</Text>
- * });
- * ```
- */
-export function wrapInAlign(options: {
-    value?: any;
-    child: React.ReactNode;
-}): React.ReactElement {
-    const { value, child } = options;
-
-    const alignment = To.alignment(value);
-
-    if (alignment == null) {
-        return <>{child}</>;
-    }
-
-    // Convert Flutter alignment to React Native flexbox style
-    const alignStyle: ViewStyle = {
-        flex: 1,
-        justifyContent: alignment.justifyContent,
-        alignItems: alignment.alignItems,
-        alignSelf: alignment.alignSelf,
-    };
-
-    return (
-        <View style={alignStyle}>
-            {child}
-        </View>
-    );
-}
-
-
-/**
- * Wraps a child component with aspect ratio constraint.
- * 
- * @param options - Configuration options
- * @returns Wrapped React component
- * 
- * @example
- * ```tsx
- * const wrapped = wrapInAspectRatio({
- *   value: 16/9,
- *   child: <Image source={...} />
- * });
- * ```
- */
-export function wrapInAspectRatio(options: {
-    value?: any;
-    child: React.ReactNode;
-}): React.ReactElement {
-    const { value, child } = options;
-
-    const aspectRatio = NumUtil.toDouble(value);
-
-    if (aspectRatio == null) {
-        return <>{child}</>;
-    }
-
-    return (
-        <View style={{ aspectRatio }}>
-            {child}
-        </View>
-    );
-}
-
-/**
- * Applies intrinsic and explicit sizing to a widget based on style properties.
- * 
- * Handles:
- * 1. Intrinsic sizing - when height/width is set to 'intrinsic'
- * 2. Explicit sizing - when height/width has specific values
- * 3. Mixed sizing - when one dimension is intrinsic and the other is explicit
- * 
- * Note: React Native doesn't have direct equivalent to Flutter's IntrinsicWidth/Height.
- * Intrinsic sizing is handled by the layout system automatically in most cases.
- */
+/** Sizing Helper */
 function _applySizing(
-    currentStyle: ViewStyle,
+    baseStyle: ViewStyle,
     style: CommonStyle,
     payload: RenderPayload
 ): ViewStyle {
     const isHeightIntrinsic = _isIntrinsic(style.height);
     const isWidthIntrinsic = _isIntrinsic(style.width);
 
-    const sizedStyle: ViewStyle = { ...currentStyle };
+    const sized: ViewStyle = { ...baseStyle };
 
-    // Apply explicit sizing for non-intrinsic dimensions
     if (!isHeightIntrinsic && style.height != null) {
-        const height = _toDimensionValue(style.height);
-        if (height != null) {
-            sizedStyle.height = height;
-        }
+        sized.height = _toDimensionValue(style.height);
+    } else if (isHeightIntrinsic) {
+        sized.height = undefined;
     }
 
     if (!isWidthIntrinsic && style.width != null) {
-        const width = _toDimensionValue(style.width);
-        if (width != null) {
-            sizedStyle.width = width;
-        }
+        sized.width = _toDimensionValue(style.width);
+    } else if (isWidthIntrinsic) {
+        sized.width = undefined;
     }
 
-    // For intrinsic sizing in React Native:
-    // - Leave width/height undefined to allow content to determine size
-    // - The flex layout system handles this automatically
-    if (isHeightIntrinsic) {
-        // Height will be determined by content
-        sizedStyle.height = undefined;
-    }
-
-    if (isWidthIntrinsic) {
-        // Width will be determined by content
-        sizedStyle.width = undefined;
-    }
-
-    return sizedStyle;
+    return sized;
 }
 
-/**
- * Checks if a dimension value represents intrinsic sizing.
- */
-function _isIntrinsic(dimensionValue?: DimensionValue | string): boolean {
-    if (dimensionValue == null) return false;
-
-    if (typeof dimensionValue === 'string') {
-        return dimensionValue.trim().toLowerCase() === 'intrinsic';
-    }
-
-    return false;
+function _isIntrinsic(v?: DimensionValue | string) {
+    return typeof v === 'string' && v.trim().toLowerCase() === 'intrinsic';
 }
 
-/**
- * Converts a dimension value to React Native DimensionValue.
- */
 function _toDimensionValue(value: any): DimensionValue | undefined {
     if (value == null) return undefined;
-
-    // Handle percentage strings
-    if (typeof value === 'string') {
-        if (value.endsWith('%')) {
-            return value as DimensionValue;
-        }
-        // Try to parse as number
-        const num = NumUtil.toDouble(value);
-        return num ?? undefined;
-    }
-
-    // Handle numbers
-    if (typeof value === 'number') {
-        return value;
-    }
-
-    return undefined;
+    if (typeof value === 'string' && value.endsWith('%')) return value as DimensionValue;
+    const num = NumUtil.toDouble(value);
+    return num ?? undefined;
 }
+
+/**
+ * Helper to apply parent constraints to a dimension value.
+ * If constraints are available, respects min/max constraints.
+ */
+export function applyConstraints(
+    value: DimensionValue | undefined,
+    dimension: 'width' | 'height',
+    constraints?: BoxConstraints
+): DimensionValue | undefined {
+    if (!constraints || value === undefined) return value;
+
+    const isWidth = dimension === 'width';
+    const min = isWidth ? constraints.minWidth : constraints.minHeight;
+    const max = isWidth ? constraints.maxWidth : constraints.maxHeight;
+
+    // If value is a percentage, return as-is (RN handles it)
+    if (typeof value === 'string' && value.endsWith('%')) return value;
+
+    // If value is a number, clamp it to constraints
+    if (typeof value === 'number') {
+        if (!isFinite(max)) return Math.max(value, min);
+        return Math.max(min, Math.min(value, max));
+    }
+
+    return value;
+}
+
+/**
+ * Export the useConstraints hook for widgets to use directly
+ */
+export { useConstraints } from './react-native-constraint-system';

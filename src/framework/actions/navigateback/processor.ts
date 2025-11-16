@@ -1,5 +1,5 @@
 import { ScopeContext } from '../../expr/scope_context';
-import { ActionProcessor, ActionContext } from '../base/processor';
+import { ActionProcessor, Context } from '../base/processor';
 import { NavigateBackAction } from './action';
 import { ActionId } from '../base/action';
 import { NavigatorHelper } from '../../utils/navigation_util';
@@ -13,17 +13,16 @@ import { useNavigationContainerRef } from '@react-navigation/native';
  */
 export class NavigateBackProcessor extends ActionProcessor<NavigateBackAction> {
     async execute(
-        context: ActionContext,
+        context: Context,
         action: NavigateBackAction,
-        scopeContext?: ScopeContext | null,
         options?: {
             id: string;
             parentActionId?: ActionId;
         }
     ): Promise<any> {
-        const maybe = action.maybe?.evaluate(scopeContext) ?? false;
+        const maybe = action.maybe?.evaluate(context.scopeContext) ?? false;
         const result = {
-            data: action.result?.deepEvaluate(scopeContext),
+            data: action.result?.deepEvaluate(context.scopeContext),
         };
 
         let navigationResult: any;

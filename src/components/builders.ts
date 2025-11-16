@@ -9,6 +9,9 @@ import { VWFlex } from './widgets/Flex';
 import { VWIcon } from './widgets/icon';
 import { IconProps } from './widget_props/icon_props';
 import { VWImage } from './widgets/Image';
+import { VWContainer } from './widgets/Container';
+import { CarouselProps } from './widget_props/carousel_props';
+import VWCarousel from './widgets/Carousel';
 
 /**
  * Create child groups from VWData, converting each to VirtualWidget instances.
@@ -45,11 +48,8 @@ export function createChildGroups(
     for (const [key, childrenData] of childGroups.entries()) {
         const widgets = childrenData
             .map((data) => {
-                // Only create widgets from VWNodeData (not VWStateData or VWComponentData)
-                if (data instanceof VWNodeData) {
-                    return registry.createWidget(data, parent);
-                }
-                return null;
+                return registry.createWidget(data, parent);
+
             })
             .filter((widget): widget is VirtualWidget => widget !== null);
 
@@ -164,6 +164,75 @@ export function imageBuilder(
         commonProps: data.commonProps,
         parentProps: data.parentProps,
         parent: parent,
+        refName: data.refName,
+    });
+}
+
+
+export function buttonBuilder(
+    data: VWNodeData,
+    parent: VirtualWidget | undefined,
+    registry: VirtualWidgetRegistry,
+) {
+    // Lazy import to avoid circular dependency
+    const { VWButton } = require('./widgets/Button');
+    return new VWButton({
+        props: data.props,
+        commonProps: data.commonProps,
+        parentProps: data.parentProps,
+        parent: parent,
+        refName: data.refName,
+    });
+}
+
+export function navigationBarBuilder(
+    data: VWNodeData,
+    parent: VirtualWidget | undefined,
+    registry: VirtualWidgetRegistry,
+) {
+    // Lazy import to avoid circular dependency
+    const { VWNavigationBar } = require('./widgets/NavigationBar');
+    return new VWNavigationBar({
+        props: data.props,
+        commonProps: data.commonProps,
+        parentProps: data.parentProps,
+        parent: parent,
+        childGroups: createChildGroups(data.childGroups, parent, registry),
+        refName: data.refName,
+    });
+}
+
+
+
+
+export function containerBuilder(
+    data: VWNodeData,
+    parent: VirtualWidget | undefined,
+    registry: VirtualWidgetRegistry,
+) {
+    return new VWContainer({
+        props: data.props,
+        commonProps: data.commonProps,
+        parentProps: data.parentProps,
+        parent: parent,
+        childGroups: createChildGroups(data.childGroups, parent, registry),
+
+        refName: data.refName,
+    });
+}
+
+
+export function carouselBuilder(
+    data: VWNodeData,
+    parent: VirtualWidget | undefined,
+    registry: VirtualWidgetRegistry,
+) {
+    return new VWCarousel({
+        props: CarouselProps.fromJson(data.props.value),
+        commonProps: data.commonProps,
+        parentProps: data.parentProps,
+        parent: parent,
+        childGroups: createChildGroups(data.childGroups, parent, registry),
         refName: data.refName,
     });
 }

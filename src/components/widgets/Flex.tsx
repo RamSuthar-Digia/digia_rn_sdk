@@ -9,6 +9,8 @@ import { RenderPayload } from '../../framework/render_payload';
 import { To } from '../../framework/utils/type_convertors';
 import { FlexFitProps } from '../widget_props/flex_fit_props';
 import { VWFlexFit } from './FlexFit';
+import { CommonProps } from '../../framework/models/common_props';
+import { LayoutProvider } from '../../framework/utils/react-native-constraint-system';
 
 export class VWFlex extends VirtualStatelessWidget<Props> {
     direction: 'horizontal' | 'vertical';
@@ -16,7 +18,7 @@ export class VWFlex extends VirtualStatelessWidget<Props> {
     constructor(options: {
         direction: 'horizontal' | 'vertical';
         props: Props;
-        commonProps?: any;
+        commonProps?: CommonProps;
         parent?: VirtualWidget;
         refName?: string;
         childGroups?: Map<string, VirtualWidget[]>;
@@ -42,15 +44,13 @@ export class VWFlex extends VirtualStatelessWidget<Props> {
 
     private _buildRepeatingFlex(payload: RenderPayload): React.ReactElement {
         const childToRepeat = this.children![0];
-        const dataItems = payload.eval<any[]>(this.props.get('dataSource')) ?? [];
+        const data = payload.eval<any[]>(this.props.get('dataSource')) ?? [];
 
-        const nodes = dataItems.map((item, index) => {
-            const scopedPayload = payload.copyWithChainedContext(
+        const nodes = data.map((item, index) => {
+            const scoped = payload.copyWithChainedContext(
                 this._createExprContext(item, index)
             );
-
-            const wrapped = this._wrapInFlexFit(childToRepeat, scopedPayload);
-            return wrapped.toWidget(scopedPayload);
+            return this._wrapInFlexFit(childToRepeat, scoped).toWidget(scoped);
         });
 
         return this._buildFlex(() => nodes);
@@ -69,35 +69,43 @@ export class VWFlex extends VirtualStatelessWidget<Props> {
         if (!isScrollable) return flexWidget;
 
         const horizontal = this.direction === 'horizontal';
+
         return (
-            <ScrollView horizontal={horizontal}>
+            <ScrollView
+                horizontal={horizontal}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{
+                    flexGrow: 0,            // 🔥 IMPORTANT: shrink-wrap (Flutter behavior)
+                    flexDirection: horizontal ? 'row' : 'column',
+                    alignItems: 'flex-start',
+                }}
+            >
                 {flexWidget}
             </ScrollView>
         );
     }
 
-    private _wrapInFlexFit(childVirtualWidget: VirtualWidget, payload: RenderPayload): VirtualWidget {
-        if (childVirtualWidget instanceof VWFlexFit) return childVirtualWidget;
+    private _wrapInFlexFit(child: VirtualWidget, payload: RenderPayload): VirtualWidget {
+        if (child instanceof VWFlexFit) return child;
 
-        const parentProps = (childVirtualWidget as any).parentProps as Props | undefined;
-        if (!parentProps) return childVirtualWidget;
+        const parentProps = (child as any).parentProps as Props | null;
+        if (!parentProps) return child;
 
-        const expansionType = parentProps.getString('expansion.type');
+        const type = parentProps.getString('expansion.type') ?? null;
         const flexValue = payload.eval<number>(parentProps.get('expansion.flexValue')) ?? 1;
-
-        if (!expansionType) return childVirtualWidget;
+        if (type === null) return child;
 
         return new VWFlexFit({
             props: new FlexFitProps({
-                flexFitType: expansionType,
-                flexValue: flexValue,
+                flexFitType: type,
+                flexValue,
             }),
             parent: this,
-            childGroups: new Map([['child', [childVirtualWidget]]]),
+            childGroups: new Map([['child', [child]]]),
         } as any);
     }
 
-    // Build the actual flex container element
     private _buildFlex(childrenBuilder: () => React.ReactNode[]): React.ReactElement {
         const spacing = this.props.getDouble('spacing') ?? 0;
         const startSpacing = this.props.getDouble('startSpacing') ?? 0;
@@ -106,42 +114,75 @@ export class VWFlex extends VirtualStatelessWidget<Props> {
         const justifyContent = To.mainAxisAlignment(this.props.get('mainAxisAlignment')) ?? 'flex-start';
         const alignItems = To.crossAxisAlignment(this.props.get('crossAxisAlignment')) ?? 'center';
 
-        const flexDirection = this.direction === 'horizontal' ? 'row' : 'column';
+        const direction = this.direction === 'horizontal' ? 'row' : 'column';
 
         const children = childrenBuilder();
 
-        // Insert spacing between children
+        // ➤ build child's list with spacing
         const spaced: React.ReactNode[] = [];
-        if (startSpacing > 0) spaced.push(<View key="start-space" style={{ width: this.direction === 'horizontal' ? startSpacing : undefined, height: this.direction === 'vertical' ? startSpacing : undefined }} />);
+
+        // start
+        if (startSpacing > 0) {
+            spaced.push(
+                <View
+                    key="start"
+                    style={{
+                        width: direction === 'row' ? startSpacing : undefined,
+                        height: direction === 'column' ? startSpacing : undefined,
+                    }}
+                />
+            );
+        }
 
         children.forEach((c, i) => {
-            spaced.push(React.isValidElement(c) ? React.cloneElement(c as any, { key: `child-${i}` }) : <React.Fragment key={`child-${i}`}>{c}</React.Fragment>);
+            spaced.push(
+                <React.Fragment key={`child-${i}`}>{c}</React.Fragment>
+            );
             if (i < children.length - 1 && spacing > 0) {
-                spaced.push(<View key={`space-${i}`} style={{ width: this.direction === 'horizontal' ? spacing : undefined, height: this.direction === 'vertical' ? spacing : undefined }} />);
+                spaced.push(
+                    <View
+                        key={`space-${i}`}
+                        style={{
+                            width: direction === 'row' ? spacing : undefined,
+                            height: direction === 'column' ? spacing : undefined,
+                        }}
+                    />
+                );
             }
         });
 
-        if (endSpacing > 0) spaced.push(<View key="end-space" style={{ width: this.direction === 'horizontal' ? endSpacing : undefined, height: this.direction === 'vertical' ? endSpacing : undefined }} />);
+        // end
+        if (endSpacing > 0) {
+            spaced.push(
+                <View
+                    key="end"
+                    style={{
+                        width: direction === 'row' ? endSpacing : undefined,
+                        height: direction === 'column' ? endSpacing : undefined,
+                    }}
+                />
+            );
+        }
 
         const containerStyle: ViewStyle = {
-            flexDirection: flexDirection as any,
+            flexDirection: direction as any,
             justifyContent: justifyContent as any,
             alignItems: alignItems as any,
+            // flex: 1, // Allow flex to fill parent
         };
 
+        // Wrap in LayoutProvider so children know the available space
+        // This fixes the issue where Flexible children don't know parent width
         return (
-            <View style={containerStyle}>
+            <LayoutProvider style={containerStyle}>
                 {spaced}
-            </View>
+            </LayoutProvider>
         );
     }
 
     private _createExprContext(item: any, index: number): ScopeContext {
-        const flexObj = {
-            currentItem: item,
-            index,
-        };
-
-        return new DefaultScopeContext({ variables: { ...flexObj } });
+        return new DefaultScopeContext({
+            variables: { currentItem: item, index },
+        });
     }
 }

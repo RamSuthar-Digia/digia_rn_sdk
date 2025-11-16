@@ -1,5 +1,5 @@
 import { ScopeContext } from '../../expr/scope_context';
-import { ActionProcessor, ActionContext } from '../base/processor';
+import { ActionProcessor, Context } from '../base/processor';
 import { NavigateToPageAction } from './action';
 import { NavigatorHelper } from '../../utils/navigation_util';
 import { DefaultScopeContext } from '../../expr/default_scope_context';
@@ -14,16 +14,15 @@ import { DefaultScopeContext } from '../../expr/default_scope_context';
  */
 export class NavigateToPageProcessor extends ActionProcessor<NavigateToPageAction> {
     async execute(
-        context: ActionContext,
+        context: Context,
         action: NavigateToPageAction,
-        scopeContext?: ScopeContext | null,
         options?: {
             id: string;
             parentActionId?: string;
         }
     ): Promise<any> {
         // Deep-evaluate the page data (may contain expressions)
-        const pageData = action.pageData?.deepEvaluate(scopeContext);
+        const pageData = action.pageData?.deepEvaluate(context.scopeContext);
         const pageId = (pageData && (pageData as any)['id']) as string | undefined;
         if (!pageId) {
             throw new Error('NavigateToPageAction: page id is required');
@@ -32,7 +31,7 @@ export class NavigateToPageProcessor extends ActionProcessor<NavigateToPageActio
         const evaluatedArgs = (pageData && (pageData as any)['args']) ?? undefined;
 
         const removePreviousScreensInStack = action.shouldRemovePreviousScreensInStack;
-        const routeNameToRemoveUntil = action.routeNametoRemoveUntil?.evaluate(scopeContext) as string | null | undefined;
+        const routeNameToRemoveUntil = action.routeNametoRemoveUntil?.evaluate(context.scopeContext) as string | null | undefined;
 
         try {
             const navigation = (context as any)?.navigation;
@@ -62,7 +61,7 @@ export class NavigateToPageProcessor extends ActionProcessor<NavigateToPageActio
                     await executeActionFlow(
                         context,
                         action.onResult,
-                        new DefaultScopeContext({ variables: { result }, enclosing: scopeContext ?? null }),
+                        new DefaultScopeContext({ variables: { result }, enclosing: context.scopeContext ?? null }),
                         { id: options?.id ?? '', parentActionId: options?.parentActionId }
                     );
                 }

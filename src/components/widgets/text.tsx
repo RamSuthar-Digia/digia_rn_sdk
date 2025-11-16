@@ -6,6 +6,7 @@ import { To } from '../../framework/utils/type_convertors';
 import { TextPropsClass } from '../widget_props/text_props';
 import { VirtualWidget } from '../base/VirtualWidget';
 import { CommonProps } from '../../framework/models/common_props';
+import { Props } from '../../framework/models/props';
 
 /**
  * Marquee text component that scrolls continuously.
@@ -70,7 +71,7 @@ export class VWText extends VirtualLeafStatelessWidget<TextPropsClass> {
     constructor(options: {
         props: TextPropsClass;
         commonProps?: CommonProps;
-        parentProps?: any;
+        parentProps?: Props;
         parent?: VirtualWidget;
         refName?: string;
     }) {
@@ -105,8 +106,12 @@ export class VWText extends VirtualLeafStatelessWidget<TextPropsClass> {
         const textStyle = alignment ? { ...style, textAlign: alignment } : style;
 
         return (
+
             <RNText
-                style={textStyle}
+                style={{
+                    overflow: 'hidden',
+                    alignSelf: 'stretch', ...textStyle
+                }}
                 numberOfLines={maxLines ?? undefined}
                 ellipsizeMode={ellipsizeMode}
             >

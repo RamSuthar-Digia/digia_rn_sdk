@@ -1,5 +1,9 @@
 import { Action, ActionId } from './action';
 import { ScopeContext } from '../../expr/scope_context';
+import { ResourceContextValue } from '../../resource_provider';
+import { StateContext } from '../../../components/state/state_context';
+import { ActionExecutor } from '../action_executor';
+import { ActionFlow } from './action_flow';
 
 /**
  * Context for action execution in React Native.
@@ -8,19 +12,22 @@ import { ScopeContext } from '../../expr/scope_context';
  * flexible context object that can contain navigation, state, and other
  * runtime information.
  */
-export interface ActionContext {
-    /** Navigation object for screen transitions */
-    navigation?: any;
+export interface ActionExecutionContext {
 
-    /** Current route/screen information */
-    route?: any;
+    /** Backwards-compatible alias for resourceProvider */
+    resources: ResourceContextValue;
 
-    /** Component state setter (if applicable) */
-    setState?: (updater: any) => void;
+    /** Optional StateContext for processors that need direct access */
+    stateContext: StateContext;
 
-    /** Any additional context data */
+    scopeContext: ScopeContext;
+
+    /** Allow additional custom keys for extensibility */
     [key: string]: any;
 }
+
+// Backwards-compatible alias used throughout the codebase
+export type Context = ActionExecutionContext;
 
 /**
  * Abstract base class for action processors.
@@ -49,7 +56,7 @@ export interface ActionContext {
  */
 export abstract class ActionProcessor<T extends Action = Action> {
     /** Execution context set by the factory */
-    executionContext?: ActionContext;
+    executionContext?: Context;
 
     /**
      * Executes the action with the given context.
@@ -61,9 +68,8 @@ export abstract class ActionProcessor<T extends Action = Action> {
      * @returns A promise that resolves to the action result (or null)
      */
     abstract execute(
-        context: ActionContext,
+        context: Context,
         action: T,
-        scopeContext?: ScopeContext | null,
         options?: {
             /** Required unique identifier for this action execution */
             id: string;

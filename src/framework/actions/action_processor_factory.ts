@@ -1,4 +1,4 @@
-import { ActionContext, ActionProcessor } from './base/processor';
+import { Context, ActionProcessor } from './base/processor';
 import React from 'react';
 import { Action, ActionType } from './base/action';
 // import { SetStateProcessor } from './set_state/processor';
@@ -6,6 +6,11 @@ import { Action, ActionType } from './base/action';
 import { NavigateBackProcessor } from './navigateback/processor';
 import { ScopeContext } from '../expr';
 import { NavigateToPageProcessor } from './navigateToPage/processor';
+import { SetStateProcessor } from './setState/processor';
+import { CallRestApiProcessor } from './callRestApi/processor';
+import { OpenUrlProcessor } from './openUrl/processor';
+import { RebuildStateProcessor } from './rebuildState/processor';
+import { ShowToastProcessor } from './showToast/processor';
 
 /**
  * Dependencies required by action processors.
@@ -19,9 +24,8 @@ export interface ActionProcessorDependencies {
 
     /** Function to execute nested action flows */
     executeActionFlow?: (
-        context: ActionContext,
+        context: Context,
         actionFlow: any,
-        scopeContext?: ScopeContext | null,
         options?: {
             id: string;
             parentActionId?: string;
@@ -64,9 +68,9 @@ export class ActionProcessorFactory {
         let processor: ActionProcessor;
 
         switch (action.actionType) {
-            // case ActionType.SetState:
-            //     processor = new SetStateProcessor();
-            //     break;
+            case ActionType.SetState:
+                processor = new SetStateProcessor();
+                break;
 
             case ActionType.NavigateToPage:
                 processor = new NavigateToPageProcessor(
@@ -76,6 +80,24 @@ export class ActionProcessorFactory {
             case ActionType.NavigateBack:
                 processor = new NavigateBackProcessor();
                 break;
+
+            case ActionType.CallRestApi:
+                processor = new CallRestApiProcessor();
+
+                break;
+
+            case ActionType.OpenUrl:
+                processor = new OpenUrlProcessor();
+                break;
+
+            case ActionType.RebuildState:
+                processor = new RebuildStateProcessor();
+                break;
+
+            case ActionType.ShowToast:
+                processor = new ShowToastProcessor();
+                break;
+
 
             default:
                 throw new Error(

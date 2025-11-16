@@ -38,8 +38,8 @@ export class Props {
      * @param keyPath - The key path (e.g., 'user.name')
      * @returns The value at the key path, or undefined if not found
      */
-    get(keyPath: string | null | undefined): any {
-        if (keyPath == null) return undefined;
+    get(keyPath: string | null): any {
+        if (keyPath == null) return null;
         return valueFor(this.value, keyPath);
     }
 
@@ -49,8 +49,8 @@ export class Props {
      * @param keyPath - The key path
      * @returns The string value, or undefined if not found or not a string
      */
-    getString(keyPath: string): string | undefined {
-        return as$<string>(this.get(keyPath)) ?? undefined;
+    getString(keyPath: string): string | null {
+        return as$<string>(this.get(keyPath)) ?? null;
     }
 
     /**

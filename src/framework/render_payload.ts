@@ -4,11 +4,13 @@ import { ActionFlow } from './actions/base/action_flow';
 import { JsonLike } from './utils/types';
 import * as expr from './expr/expression_util';
 import { DUIFontFactory } from './font_factory';
-import { useResourceProvider } from './resource_provider';
-import { deserializeIcon } from '../components/icon_helper/icon_data_serialization';
+import { ResourceContextValue } from './resource_provider';
+import { getIconDetails } from '../components/icon_helper/icon_data_serialization';
 import { defaultTextStyle, makeTextStyle } from './utils/textstyle_util';
 import { TextStyle } from 'react-native';
 import { APIModel } from '../network/api_request/api_request';
+import { Action, Context } from './actions';
+import { ActionExecutor } from './actions/action_executor';
 
 /**
  * Payload containing all necessary context for rendering UI components.
@@ -22,10 +24,7 @@ import { APIModel } from '../network/api_request/api_request';
  */
 export class RenderPayload {
     /** The React Native component context */
-    readonly context: any;
-
-    /** Expression evaluation scope context */
-    readonly scopeContext: ScopeContext;
+    readonly context: Context;
 
     /** Hierarchy of widget/component names from root to current */
     readonly widgetHierarchy: string[];
@@ -33,17 +32,15 @@ export class RenderPayload {
     /** Current entity (page or component) ID */
     readonly currentEntityId?: string;
     /** Optional action executor injected at payload construction time */
-    readonly actionExecutor?: any;
+    readonly actionExecutor?: ActionExecutor;
 
     constructor(options: {
-        context: any;
-        scopeContext: ScopeContext;
+        context: Context;
         widgetHierarchy?: string[];
         currentEntityId?: string;
         actionExecutor?: any;
     }) {
         this.context = options.context;
-        this.scopeContext = options.scopeContext;
         this.widgetHierarchy = options.widgetHierarchy ?? [];
         this.currentEntityId = options.currentEntityId;
         this.actionExecutor = options.actionExecutor;
@@ -59,7 +56,7 @@ export class RenderPayload {
         if (map == null) return null;
 
         // TODO: Implement icon retrieval logic
-        return deserializeIcon(map as any);
+        return getIconDetails(map as any);
     }
 
     /**
@@ -69,7 +66,8 @@ export class RenderPayload {
      * @returns Color value or null
      */
     getColor(key: string): string | null {
-        return useResourceProvider()?.getColor(key) ?? null;
+        const rp = this._getResourceProvider();
+        return rp?.getColor(key) ?? null;
     }
 
     /**
@@ -79,7 +77,8 @@ export class RenderPayload {
      * @returns API model or null
      */
     getApiModel(id: string): APIModel | null {
-        return useResourceProvider()?.apiModels?.[id] ?? null;
+        const rp = this._getResourceProvider();
+        return rp?.apiModels?.[id] ?? null;
     }
 
     /**
@@ -88,7 +87,8 @@ export class RenderPayload {
      * @returns Font factory instance or null
      */
     getFontFactory(): DUIFontFactory | null {
-        return useResourceProvider()?.getFontFactory() ?? null;
+        const rp = this._getResourceProvider();
+        return rp?.getFontFactory() ?? null;
     }
 
     /**
@@ -101,10 +101,15 @@ export class RenderPayload {
     getTextStyle(json?: JsonLike | null, fallback: TextStyle = defaultTextStyle): TextStyle | null {
         return makeTextStyle(
             json ?? null,
-            useResourceProvider(),
+            this._getResourceProvider(),
             this.eval.bind(this),
             fallback
         );
+    }
+
+    private _getResourceProvider(): ResourceContextValue | null {
+        const ctx = this.context;
+        return (ctx?.resourceProvider ?? ctx?.resources ?? null) as ResourceContextValue | null;
     }
 
     /**
@@ -125,7 +130,7 @@ export class RenderPayload {
     async executeAction(
         actionFlow?: ActionFlow | null,
         options?: {
-            scopeContext?: ScopeContext;
+            // scopeContext?: ScopeContext;
             triggerType?: string;
         }
     ): Promise<any> {
@@ -133,13 +138,8 @@ export class RenderPayload {
             return null;
         }
 
-        // Prefer an injected actionExecutor to avoid calling React hooks from
-        // non-hook contexts (event handlers, processors, etc.). Calling hooks
-        // such as useActionExecutor() here can lead to "Invalid hook call"
-        // when executeAction is invoked outside of a React function component
-        // body. Consumers should pass an actionExecutor when creating the
-        // RenderPayload (see DUIPageContent usage).
-        const executor = this.actionExecutor ?? (this.context && (this.context.actionExecutor as any));
+
+        const executor = this.actionExecutor;
 
         if (!executor) {
             throw new Error(
@@ -151,7 +151,8 @@ export class RenderPayload {
         return executor.execute(
             this.context,
             actionFlow,
-            this._chainExprContext(options?.scopeContext),
+            //Need to think about this part carefully
+            //   this._chainExprContext(options?.scopeContext),
             {
                 id: this._generateId(),
             }
@@ -203,7 +204,7 @@ export class RenderPayload {
             decoder?: (value: any) => T | null;
         }
     ): T | null {
-        return exprOr?.evaluate(this.scopeContext, options) ?? null;
+        return exprOr?.evaluate(this.context.scopeContext, options) ?? null;
     }
 
     /**
@@ -241,7 +242,7 @@ export class RenderPayload {
         }
     ): string | null {
         const colorString = expression?.evaluate(
-            options?.scopeContext ?? this.scopeContext,
+            options?.scopeContext ?? this.context.scopeContext,
             { decoder: options?.decoder }
         );
 
@@ -278,7 +279,7 @@ export class RenderPayload {
      * @returns Chained scope context
      */
     private _chainExprContext(incoming?: ScopeContext): ScopeContext {
-        return this._createChain(this.scopeContext, incoming);
+        return this._createChain(this.context.scopeContext, incoming);
     }
 
     /**
@@ -308,12 +309,8 @@ export class RenderPayload {
      */
     copyWithChainedContext(
         scopeContext: ScopeContext,
-        options?: {
-            context?: any;
-        }
     ): RenderPayload {
         return this.copyWith({
-            context: options?.context ?? this.context,
             scopeContext: this._chainExprContext(scopeContext),
         });
     }
@@ -325,15 +322,20 @@ export class RenderPayload {
      * @returns New RenderPayload instance
      */
     copyWith(options?: {
-        context?: any;
         scopeContext?: ScopeContext;
         widgetHierarchy?: string[];
         currentEntityId?: string;
         actionExecutor?: any;
     }): RenderPayload {
+        // If a new scopeContext is provided, create a shallow-cloned context
+        // with the updated scopeContext so downstream evaluation uses it.
+        const newContext: Context = {
+            ...this.context,
+            scopeContext: options?.scopeContext ?? this.context.scopeContext,
+        } as Context;
+
         return new RenderPayload({
-            context: options?.context ?? this.context,
-            scopeContext: options?.scopeContext ?? this.scopeContext,
+            context: newContext,
             widgetHierarchy: options?.widgetHierarchy ?? this.widgetHierarchy,
             currentEntityId: options?.currentEntityId ?? this.currentEntityId,
             actionExecutor: options?.actionExecutor ?? this.actionExecutor,

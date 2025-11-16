@@ -11,7 +11,6 @@ import { ScaffoldProps } from '../widget_props/scafold_props';
 
 
 // Context
-
 export class VWScaffold extends VirtualStatelessWidget<ScaffoldProps> {
     constructor(options: {
         props: ScaffoldProps;
@@ -32,6 +31,10 @@ export class VWScaffold extends VirtualStatelessWidget<ScaffoldProps> {
         const enableSafeArea = payload.evalExpr<boolean>(this.props.enableSafeArea) ?? true;
 
         const SimpleScaffold: React.FC = () => {
+            // Some consumer apps may not have react-native-safe-area-context
+            // properly linked or available at runtime. Fall back to safe
+            // no-op components to avoid crashing the app.
+            // const SafeView: React.ComponentType<any> = (SafeAreaView as any) || View;
             const renderAppBar = () => {
                 if (!appBarWidget) return null;
                 return appBarWidget.toWidget(payload);
@@ -53,12 +56,10 @@ export class VWScaffold extends VirtualStatelessWidget<ScaffoldProps> {
             };
 
             return (
-                <SafeAreaProvider>
-                    <View style={[styles.scaffold, { backgroundColor: bgColor }]}>
-                        {renderAppBar()}
-                        {renderBody()}
-                    </View>
-                </SafeAreaProvider>
+                <View style={[styles.scaffold, { backgroundColor: bgColor }]}>
+                    {renderAppBar()}
+                    {renderBody()}
+                </View>
             );
         };
 

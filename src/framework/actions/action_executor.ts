@@ -1,6 +1,6 @@
 import { ScopeContext } from '../expr/scope_context';
 import { JsonLike } from '../utils/types';
-import { ActionContext } from './base/processor';
+import { Context } from './base/processor';
 import { ActionProcessorFactory, ActionProcessorDependencies } from './action_processor_factory';
 import { Action, ActionId } from './base/action';
 import { ActionFlow } from './base/action_flow';
@@ -50,9 +50,8 @@ export class ActionExecutor {
      * ```
      */
     async execute(
-        context: ActionContext,
+        context: Context,
         actionFlow: ActionFlow,
-        scopeContext?: ScopeContext | null,
         options?: {
             id?: string;
             parentActionId?: string;
@@ -64,7 +63,7 @@ export class ActionExecutor {
             const actionEventId = action.actionId;
 
             // Check if action is disabled
-            const disabled = action.disableActionIf?.evaluate(scopeContext) ?? false;
+            const disabled = action.disableActionIf?.evaluate(context.scopeContext) ?? false;
             if (disabled) {
                 continue;
             }
@@ -83,7 +82,6 @@ export class ActionExecutor {
             await processor.execute(
                 context,
                 action,
-                scopeContext,
                 {
                     id: actionEventId!,
                     parentActionId: options?.parentActionId,

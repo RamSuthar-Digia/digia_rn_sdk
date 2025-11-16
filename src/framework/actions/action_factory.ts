@@ -2,8 +2,13 @@ import { ExprOr } from '../models/types';
 import { as$ } from '../utils/functional_utils';
 import { JsonLike } from '../utils/types';
 import { Action, ActionType, actionTypeFromString } from './base/action';
+import { CallRestApiAction } from './callRestApi/action';
 import { NavigateBackAction } from './navigateback/action';
 import { NavigateToPageAction } from './navigateToPage/action';
+import { OpenUrlAction } from './openUrl/action';
+import { RebuildStateAction } from './rebuildState/action';
+import { SetStateAction } from './setState/action';
+import { ShowToastAction } from './showToast/action';
 
 /**
  * Factory class for creating Action instances from JSON data.
@@ -44,9 +49,9 @@ export class ActionFactory {
         let action: Action;
 
         switch (actionType) {
-            // case ActionType.SetState:
-            //     action = SetStateAction.fromJson(actionData);
-            //     break;
+            case ActionType.SetState:
+                action = SetStateAction.fromJson(actionData);
+                break;
 
             case ActionType.NavigateToPage:
                 action = NavigateToPageAction.fromJson(actionData);
@@ -54,6 +59,26 @@ export class ActionFactory {
 
             case ActionType.NavigateBack:
                 action = NavigateBackAction.fromJson(actionData);
+                break;
+
+            case ActionType.CallRestApi:
+                action = CallRestApiAction.fromJson(actionData);
+
+                break;
+
+            case ActionType.OpenUrl:
+                action = OpenUrlAction.fromJson(actionData);
+
+                break;
+
+            case ActionType.RebuildState:
+                action = RebuildStateAction.fromJson(actionData);
+
+                break;
+
+            case ActionType.ShowToast:
+                action = ShowToastAction.fromJson(actionData);
+
                 break;
 
             default:

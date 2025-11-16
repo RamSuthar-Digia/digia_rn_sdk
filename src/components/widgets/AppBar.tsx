@@ -7,10 +7,10 @@ import { RenderPayload } from '../../framework/render_payload';
 import { VWText } from './text';
 import { SimpleIcon } from '../internals/icon';
 import { IconProps } from '../widget_props/icon_props';
-import { wrapInGestureDetector } from '../../framework/utils/widget_util';
 import { NumUtil } from '../../framework/utils/num_util';
 import { CommonProps } from '../../framework/models/common_props';
 import { Props } from '../../framework/models/props';
+import { wrapWidget } from '../../framework/utils/widget_util';
 
 /**
  * AppBar virtual widget.
@@ -50,11 +50,10 @@ export class VWAppBar extends VirtualLeafStatelessWidget<AppBarProps> {
 
             if (iconData) {
                 const iconEl = <SimpleIcon {...iconData} size={size} color={color} />;
-                leadingElement = wrapInGestureDetector({
+                leadingElement = wrapWidget({
                     payload,
                     actionFlow: this.props.onTapLeadingIcon ?? undefined,
                     child: iconEl,
-                    borderRadius: undefined,
                 });
             }
         }

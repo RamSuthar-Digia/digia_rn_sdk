@@ -53,6 +53,43 @@ export class VWNavigationBar extends VirtualStatelessWidget<NavigationBarProps> 
     render(payload: RenderPayload): React.ReactNode {
         const destinations = this.childrenOf('children')?.map((c) => c.toWidget(payload)) ?? [];
 
+        // Prefer using react-native-paper's BottomNavigation when available
+        // to leverage a well-tested, material implementation. Fall back to
+        // the internal BottomNavigationBar otherwise.
+        let Paper: any = null;
+        try {
+            // runtime require so the package is optional
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            Paper = require('react-native-paper');
+        } catch (e) {
+            Paper = null;
+        }
+
+        if (Paper && Paper.BottomNavigation) {
+            // Build routes and scene map for Paper BottomNavigation
+            const routes: any[] = destinations.map((dest, i) => ({ key: `r${i}`, title: (this.childrenOf('children')?.[i] as any)?.props?.label ?? `Page ${i}` }));
+
+            const sceneMap: Record<string, any> = {};
+            destinations.forEach((dest, i) => {
+                // each scene is a function that returns the rendered destination
+                sceneMap[`r${i}`] = () => dest;
+            });
+
+            const NavigationComp = Paper.BottomNavigation as any;
+
+            return (
+                <NavigationComp
+                    navigationState={{ index: this.selectedIndex ?? 0, routes }}
+                    onIndexChange={(idx: number) => this.handleDestinationSelected(idx, payload)}
+                    renderScene={(route: any) => {
+                        const fn = sceneMap[route.key];
+                        return fn ? fn() : null;
+                    }}
+                />
+            );
+        }
+
+        // Fallback to internal implementation when paper is not available
         return (
             <BottomNavigationBarInternal
                 backgroundColor={payload.evalColorExpr(this.props.backgroundColor) ?? undefined}
@@ -71,3 +108,6 @@ export class VWNavigationBar extends VirtualStatelessWidget<NavigationBarProps> 
         );
     }
 }
+
+export default VWNavigationBar;
+

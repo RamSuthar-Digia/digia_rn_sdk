@@ -3,11 +3,12 @@ import React from 'react';
 import { VirtualLeafStatelessWidget } from '../base/VirtualLeafStatelessWidget';
 import { RenderPayload } from '../../framework/render_payload';
 import { Props } from '../../framework/models/props';
-import { wrapInAspectRatio } from '../../framework/utils/widget_util';
 import { To } from '../../framework/utils/type_convertors';
-import { InternalImage } from '../internals/image';
 import { VirtualWidget } from '../base/VirtualWidget';
 import { CommonProps } from '../../framework/models/common_props';
+import { wrapWidget } from '../../framework/utils/widget_util';
+import { ExtentUtil } from '../../framework/utils/extensions';
+import InternalImage from '../internals/image';
 
 /**
  * VWImage - Virtual image widget ported from Flutter VWImage.
@@ -43,19 +44,24 @@ export class VWImage extends VirtualLeafStatelessWidget<Props> {
         const placeholderSrc = this.props.getString('placeholderSrc');
         const errorImage = this.props.get('errorImage');
 
-        // Pass resizeMode via style (InternalImage reads resizeMode from style)
-        const style: any = { resizeMode: fit };
 
-        return wrapInAspectRatio({
-            value: this.props.get('aspectRatio'),
+
+        return wrapWidget({
+            payload,
+            aspectRatio: this.props.get('aspectRatio'),
             child: (
                 <InternalImage
                     imageSourceExpr={imageSourceExpr}
                     payload={payload}
                     imageType={imageType}
-                    style={style}
+                    fit={To.boxFit(this.props.get('fit'))}
+                    alignment={To.alignment(this.props.get('alignment'))}
+                    svgColor={svgColor ?? undefined}
+                    placeholderType={placeholderType}
                     placeholderSrc={placeholderSrc}
                     errorImage={errorImage}
+                    height={ExtentUtil.toHeight(this.commonProps?.style?.height ?? '')}
+                    width={ExtentUtil.toWidth(this.commonProps?.style?.width ?? '')}
                 />
             ),
         });

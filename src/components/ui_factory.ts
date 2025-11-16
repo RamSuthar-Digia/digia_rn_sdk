@@ -23,6 +23,7 @@ import { createDUIPageRoute, DUIPageRoute } from './page/page_route';
 import { presentBottomSheet } from '../framework/utils/navigation_util';
 import { VirtualWidget } from './base/VirtualWidget';
 import { convertToTextStyle } from '../framework/utils/textstyle_util';
+import { StdLibFunctions } from '@digia/expr-rn';
 
 /**
  * Central factory class for creating Digia UI widgets, pages, and components.
@@ -115,7 +116,7 @@ export class DUIFactory {
                 const componentElement = this.createComponent(id, args);
 
                 // Wrap in ComponentVirtualWidget
-                return new ComponentVirtualWidget(componentElement);
+                return componentElement;
             },
         });        // Initialize method binding registry for expression evaluation
         this.bindingRegistry = {}; // TODO: Implement MethodBindingRegistry
@@ -425,7 +426,7 @@ export class DUIFactory {
             values: appState.values,
             variables: {
                 // TODO: Add standard library functions
-                // ...StdLibFunctions.functions,
+                ...StdLibFunctions.functions,
                 ...DigiaUIManager.getInstance().jsVars,
             },
         });
@@ -613,7 +614,7 @@ export class DUIFactory {
             values: appState.values,
             variables: {
                 // TODO: Add standard library functions
-                // ...StdLibFunctions.functions,
+                ...StdLibFunctions.functions,
                 ...DigiaUIManager.getInstance().jsVars,
             },
         });

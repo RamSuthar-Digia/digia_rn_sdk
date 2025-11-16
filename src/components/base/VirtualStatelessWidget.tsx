@@ -2,6 +2,7 @@ import React from 'react';
 import { VirtualLeafStatelessWidget } from './VirtualLeafStatelessWidget';
 import { VirtualWidget } from './VirtualWidget';
 import { CommonProps } from '../../framework/models/common_props';
+import { Props } from '../../framework/models/props';
 
 /**
  * Base class for stateless virtual widgets
@@ -13,7 +14,7 @@ export abstract class VirtualStatelessWidget<T = any> extends VirtualLeafStatele
   constructor(options: {
     props: T;
     commonProps?: CommonProps;
-    parentProps?: any;
+    parentProps?: Props;
     parent?: VirtualWidget;
     refName?: string;
     childGroups?: Map<string, VirtualWidget[]>;

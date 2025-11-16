@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { VirtualWidget } from './VirtualWidget';
 import { RenderPayload } from '../../framework/render_payload';
+import { CommonProps } from '../../framework/models/common_props';
+import { Props } from '../../framework/models/props';
 
 /**
  * Widget that uses a builder function to render
@@ -9,14 +11,14 @@ import { RenderPayload } from '../../framework/render_payload';
  */
 export class VirtualBuilderWidget extends VirtualWidget {
   private builder: (payload: RenderPayload) => React.ReactNode;
-  commonProps?: any;
+  commonProps?: CommonProps;
   extendHierarchy: boolean;
 
   constructor(
     builder: (payload: RenderPayload) => React.ReactNode,
     options: {
-      commonProps?: any;
-      parentProps?: any;
+      commonProps?: CommonProps;
+      parentProps?: Props;
       refName?: string;
       parent?: VirtualWidget;
       extendHierarchy?: boolean;
@@ -50,7 +52,7 @@ export class VirtualBuilderWidget extends VirtualWidget {
 
       // Check visibility
       const isVisible =
-        this.commonProps.visibility?.evaluate(extendedPayload.scopeContext) ?? true;
+        this.commonProps.visibility?.evaluate(extendedPayload.context.scopeContext) ?? true;
       if (!isVisible) {
         return this.empty();
       }

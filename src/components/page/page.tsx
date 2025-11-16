@@ -11,11 +11,12 @@ import { StatefulScopeWidget, StateType } from '../state/state_scope_widget';
 import { DataTypeCreator } from '../../framework/data_type/data_type_creator';
 import { ActionFlow } from '../../framework/actions/base/action_flow';
 import { RenderPayload } from '../../framework/render_payload';
-import { useResourceProvider } from '../../framework/resource_provider';
+import { ResourceContextValue, useResourceProvider } from '../../framework/resource_provider';
 import { ResourceProvider } from '../../framework/resource_provider';
 import { ActionExecutor } from '../../framework/actions/action_executor';
 import { JsonLike } from '../../framework/utils/types';
 import { useActionExecutor } from '../../framework';
+import { useStateContext } from '../state/state_context_provider';
 
 /**
  * Props for DUIPage component.
@@ -231,6 +232,12 @@ const DUIPageContent: React.FC<DUIPageContentProps> = ({
 }) => {
     const [renderCount, setRenderCount] = React.useState(0);
 
+    // Obtain resources (navigatorKey), action executor and state context via hooks
+    const resources = useResourceProvider();
+    const executor = useActionExecutor();
+    const stateContext = useStateContext();
+
+
     // Handle controller rebuild notifications
     useEffect(() => {
         if (!controller) return;
@@ -251,19 +258,19 @@ const DUIPageContent: React.FC<DUIPageContentProps> = ({
         if (onPageLoaded) {
             // Execute on next frame (similar to Flutter's addPostFrameCallback)
             const timeoutId = setTimeout(() => {
-                executeAction(onPageLoaded, scope, 'onPageLoad');
+                executeAction(onPageLoaded, scope, stateContext!, resources!, 'onPageLoad');
             }, 0);
 
             return () => clearTimeout(timeoutId);
         }
-    }, [onPageLoaded, scope]);
+    }, [onPageLoaded, scope, stateContext, resources]);
 
     // Handle back button press
     useEffect(() => {
         if (!onBackPress) return;
 
         const handleBackPress = () => {
-            executeAction(onBackPress, scope, 'onBackPress');
+            executeAction(onBackPress, scope, stateContext!, resources!, 'onBackPress');
             return true; // Prevent default back behavior
         };
 
@@ -273,7 +280,7 @@ const DUIPageContent: React.FC<DUIPageContentProps> = ({
         );
 
         return () => subscription.remove();
-    }, [onBackPress, scope]);
+    }, [onBackPress, scope, stateContext, resources]);
 
     // Build page content
     const rootNode = layout?.root;
@@ -285,22 +292,16 @@ const DUIPageContent: React.FC<DUIPageContentProps> = ({
 
     const virtualWidget = registry.createWidget(rootNode, undefined);
 
-    // Obtain resources (navigatorKey) and action executor via hooks
-    const resources = useResourceProvider();
-    const executor = useActionExecutor();
-
-    // Create execution context with navigation reference
-    // Use ResourceProvider's navigatorKey if available, otherwise use the global navigatorRef
-    const executionContext = {
-        navigation: resources?.navigatorKey ?? undefined,
-        // expose executeActionFlow if executor wants to be reachable from processors
-        executeActionFlow: executor ? executor.execute.bind(executor) : undefined,
-    };
-
     return virtualWidget.toWidget(
         new RenderPayload({
-            context: executionContext,
-            scopeContext: scope,
+            context: {
+                scopeContext: scope,
+                resources: resources!,
+                resourceProvider: resources!,
+                stateContext: stateContext!,
+                navigation: resources?.navigatorKey ?? undefined,
+                executeActionFlow: executor ? executor.execute.bind(executor) : undefined,
+            },
             currentEntityId: pageId,
             widgetHierarchy: [],
             actionExecutor: executor,
@@ -314,6 +315,8 @@ const DUIPageContent: React.FC<DUIPageContentProps> = ({
 async function executeAction(
     actionFlow: ActionFlow,
     scopeContext: ScopeContext,
+    stateContext: StateContext,
+    resources: ResourceContextValue,
     triggerType: string
 ): Promise<any> {
     const actionExecutor = new ActionExecutor({
@@ -322,9 +325,8 @@ async function executeAction(
     });
 
     return actionExecutor.execute(
-        {}, // ActionExecutionContext
+        { scopeContext: scopeContext, stateContext: stateContext, resources: resources },
         actionFlow,
-        scopeContext,
         {
             id: generateRandomId(),
         }
