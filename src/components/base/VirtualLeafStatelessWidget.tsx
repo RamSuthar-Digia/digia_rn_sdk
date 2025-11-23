@@ -35,7 +35,6 @@ export abstract class VirtualLeafStatelessWidget<T> extends VirtualWidget {
                 this.refName != null
                     ? payload.withExtendedHierarchy(this.refName)
                     : payload;
-
             if (this.commonProps == null) {
                 const rendered = this.render(extendedPayload);
                 return rendered as React.ReactElement;
@@ -59,8 +58,6 @@ export abstract class VirtualLeafStatelessWidget<T> extends VirtualWidget {
                 actionFlow: this.commonProps?.onClick ?? null,
             });
 
-            // Margin should always be the last wrapper
-            let isZero = false;
 
 
             return current;

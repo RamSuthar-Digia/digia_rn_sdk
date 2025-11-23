@@ -17,6 +17,7 @@ import { ActionExecutor } from '../../framework/actions/action_executor';
 import { JsonLike } from '../../framework/utils/types';
 import { useActionExecutor } from '../../framework';
 import { useStateContext } from '../state/state_context_provider';
+import { LayoutProvider } from '../../framework/utils/react-native-constraint-system';
 
 /**
  * Props for DUIPage component.
@@ -292,20 +293,26 @@ const DUIPageContent: React.FC<DUIPageContentProps> = ({
 
     const virtualWidget = registry.createWidget(rootNode, undefined);
 
-    return virtualWidget.toWidget(
-        new RenderPayload({
-            context: {
-                scopeContext: scope,
-                resources: resources!,
-                resourceProvider: resources!,
-                stateContext: stateContext!,
-                navigation: resources?.navigatorKey ?? undefined,
-                executeActionFlow: executor ? executor.execute.bind(executor) : undefined,
-            },
-            currentEntityId: pageId,
-            widgetHierarchy: [],
-            actionExecutor: executor,
-        })
+    return (
+
+
+        virtualWidget.toWidget(
+            new RenderPayload({
+                context: {
+                    scopeContext: scope,
+                    resources: resources!,
+                    resourceProvider: resources!,
+                    stateContext: stateContext!,
+                    navigation: resources?.navigatorKey ?? undefined,
+                    executeActionFlow: executor ? executor.execute.bind(executor) : undefined,
+                },
+                currentEntityId: pageId,
+                widgetHierarchy: [],
+                actionExecutor: executor,
+            })
+        )
+
+
     );
 };
 

@@ -1,5 +1,5 @@
 import { Expression } from '@digia/expr-rn';
-import { to } from '../utils/object_util';
+import { to, ToType } from '../utils/object_util';
 import { ScopeContext } from './scope_context';
 
 /**
@@ -26,9 +26,10 @@ import { ScopeContext } from './scope_context';
 export function evaluateExpression<T = any>(
     expression: string,
     scopeContext?: ScopeContext | null,
+    type?: ToType
 ): T | null {
     const result = Expression.eval(expression, scopeContext ?? null);
-    return to<T>(result);
+    return to<T>(result, { type });
 }
 
 /**

@@ -1,4 +1,4 @@
-import { to } from '../utils/object_util';
+import { to, ToType } from '../utils/object_util';
 import { ScopeContext } from '../expr/scope_context';
 import * as expr from '../expr/expression_util';
 
@@ -88,6 +88,7 @@ export class ExprOr<T = any> {
     evaluate(
         scopeContext?: ScopeContext | null,
         options?: {
+            type?: ToType;
             decoder?: (value: any) => T | null;
         }
     ): T | null {
@@ -103,10 +104,10 @@ export class ExprOr<T = any> {
             }
 
             // Evaluate the expression using the expression utility
-            return expr.evaluateExpression<T>(expressionString, scopeContext);
+            return expr.evaluateExpression<T>(expressionString, scopeContext, options?.type);
         } else {
             // If it's not an expression, cast it to T
-            return options?.decoder?.(this._value) ?? to<T>(this._value);
+            return options?.decoder?.(this._value) ?? to<T>(this._value, { type: options?.type });
         }
     }
 

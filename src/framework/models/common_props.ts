@@ -15,8 +15,8 @@ interface CommonStyleProps {
     bgColor?: ExprOr<string> | null;
     border?: JsonLike;
     borderRadius?: number | string;
-    height?: string | null;
-    width?: string | null;
+    height?: DimensionValue | null;
+    width?: DimensionValue | null;
     clipBehavior?: 'visible' | 'hidden';
 }
 
@@ -26,8 +26,8 @@ export class CommonStyle implements CommonStyleProps {
     bgColor?: ExprOr<string> | null;
     border?: JsonLike;
     borderRadius?: number | string;
-    height?: string | null;
-    width?: string | null;
+    height?: DimensionValue | null;
+    width?: DimensionValue | null;
     clipBehavior?: 'visible' | 'hidden';
 
     constructor({
@@ -66,8 +66,8 @@ export class CommonStyle implements CommonStyleProps {
                 ['borderRadius', 'border.borderRadius'],
             ) ?? undefined,
             border: as$<JsonLike>(json['border']) ?? json,
-            height: as$<string | null>(json['height']) ?? undefined,
-            width: as$<string | null>(json['width']) ?? undefined,
+            height: as$<DimensionValue | null>(json['height']) ?? undefined,
+            width: as$<DimensionValue | null>(json['width']) ?? undefined,
             clipBehavior: as$<'visible' | 'hidden'>(json['clipBehavior']) ?? undefined,
         });
     }

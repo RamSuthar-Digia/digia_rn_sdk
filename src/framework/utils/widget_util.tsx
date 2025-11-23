@@ -23,6 +23,8 @@ type WrapOptions = {
     actionFlow?: ActionFlow | null;
     /** If true, wraps content with LayoutProvider to provide constraints to children */
     provideConstraints?: boolean;
+    /** Optional parent constraints to seed LayoutProvider when not available from context */
+    parentConstraints?: BoxConstraints | null;
 };
 
 /**
@@ -38,7 +40,8 @@ export function wrapWidget({
     aspectRatio,
     child,
     actionFlow,
-    provideConstraints = true,
+    provideConstraints = false,
+    parentConstraints = null,
 }: WrapOptions): React.ReactElement {
     const mergedStyle: ViewStyle = {};
 
@@ -92,22 +95,26 @@ export function wrapWidget({
         // 🟤 Sizing
         Object.assign(mergedStyle, _applySizing(mergedStyle, style.style ?? {}, payload));
 
-        // ⚫ Alignment
-        const alignment = To.alignment(style.align);
-        if (alignment) {
-            mergedStyle.justifyContent = alignment.justifyContent;
-            mergedStyle.alignItems = alignment.alignItems;
-            mergedStyle.alignSelf = alignment.alignSelf;
+        const align = To.alignment(style.align);
+        if (align) {
+            Object.assign(mergedStyle, align);
+            // mergedStyle.flexShrink = 1;
         }
+        // ⚫ Alignment
+
+
 
     }
     if (aspectRatio) mergedStyle.aspectRatio = aspectRatio;
 
 
     // 🟩 Safe Area
-    const content = (
-        child
-    );
+    var content: React.ReactNode = child;
+
+
+
+
+    // const Default: React.FC = () => {
 
     // 🟥 Action Flow (Tap)
     if (actionFlow && actionFlow.actions.length > 0) {
@@ -115,7 +122,7 @@ export function wrapWidget({
             payload.executeAction(actionFlow, { triggerType: 'onTap' });
         };
 
-        const touchable = (
+        content = (
             <TouchableOpacity
                 onPress={handlePress}
                 activeOpacity={actionFlow.inkwell ? 0.7 : 1}
@@ -125,29 +132,39 @@ export function wrapWidget({
             </TouchableOpacity>
         );
 
-        return provideConstraints ? (
-            <LayoutProvider style={mergedStyle}>
-                <TouchableOpacity
-                    onPress={handlePress}
-                    activeOpacity={actionFlow.inkwell ? 0.7 : 1}
-                // style={{ flex: 1 }}
-                >
-                    {content}
-                </TouchableOpacity>
-            </LayoutProvider>
-        ) : touchable;
+
+
     }
 
-    // 🟦 Normal View (Single Layer)
+    if (isEmptyObject(mergedStyle)) {
+        return content as React.ReactElement;
+    }
+
     if (provideConstraints) {
+        const ctx = useConstraints();
+        const ctxConstraints = ctx?.constraints ?? null;
+        const effectiveParent = parentConstraints ?? ctxConstraints ?? null;
+
+        const styleToPass: any = { ...mergedStyle };
+
+
         return (
-            <LayoutProvider style={mergedStyle}>
+            <LayoutProvider style={styleToPass}>
                 {content}
             </LayoutProvider>
         );
     }
 
-    return <View style={{ ...mergedStyle, }}>{content}</View>;
+    // if (isViewBased(content)) {
+    //     const contentStyle = (content as React.ReactElement).props.style as ViewStyle;
+    //     return React.cloneElement(content as React.ReactElement, { style: Object.assign({}, contentStyle, mergedStyle) });
+    // }
+
+    return <View style={mergedStyle}>{content}</View>;
+
+    // }
+
+    // return <Default />;
 }
 
 /** Sizing Helper */
@@ -156,22 +173,12 @@ function _applySizing(
     style: CommonStyle,
     payload: RenderPayload
 ): ViewStyle {
-    const isHeightIntrinsic = _isIntrinsic(style.height);
-    const isWidthIntrinsic = _isIntrinsic(style.width);
 
     const sized: ViewStyle = { ...baseStyle };
-
-    if (!isHeightIntrinsic && style.height != null) {
-        sized.height = _toDimensionValue(style.height);
-    } else if (isHeightIntrinsic) {
-        sized.height = undefined;
-    }
-
-    if (!isWidthIntrinsic && style.width != null) {
-        sized.width = _toDimensionValue(style.width);
-    } else if (isWidthIntrinsic) {
-        sized.width = undefined;
-    }
+    const width = _toDimensionValue(style.width);
+    const height = _toDimensionValue(style.height);
+    if (width != null) sized.width = width;
+    if (height != null) sized.height = height;
 
     return sized;
 }
@@ -180,41 +187,35 @@ function _isIntrinsic(v?: DimensionValue | string) {
     return typeof v === 'string' && v.trim().toLowerCase() === 'intrinsic';
 }
 
-function _toDimensionValue(value: any): DimensionValue | undefined {
-    if (value == null) return undefined;
-    if (typeof value === 'string' && value.endsWith('%')) return value as DimensionValue;
-    const num = NumUtil.toDouble(value);
-    return num ?? undefined;
+function _toDimensionValue(value: any): DimensionValue | null {
+    return value ?? null;
 }
 
-/**
- * Helper to apply parent constraints to a dimension value.
- * If constraints are available, respects min/max constraints.
- */
-export function applyConstraints(
-    value: DimensionValue | undefined,
-    dimension: 'width' | 'height',
-    constraints?: BoxConstraints
-): DimensionValue | undefined {
-    if (!constraints || value === undefined) return value;
 
-    const isWidth = dimension === 'width';
-    const min = isWidth ? constraints.minWidth : constraints.minHeight;
-    const max = isWidth ? constraints.maxWidth : constraints.maxHeight;
+/** Utility to check if an object has no own properties */
+function isEmptyObject(obj: object): boolean {
+    return Object.keys(obj).length === 0;
+}
 
-    // If value is a percentage, return as-is (RN handles it)
-    if (typeof value === 'string' && value.endsWith('%')) return value;
 
-    // If value is a number, clamp it to constraints
-    if (typeof value === 'number') {
-        if (!isFinite(max)) return Math.max(value, min);
-        return Math.max(min, Math.min(value, max));
+export function isViewBased(el: any): boolean {
+    if (!React.isValidElement(el)) return false;
+
+    // Native View
+    if (el.type === View) return true;
+
+    // Functional component returning a View
+    if (typeof el.type === 'function') {
+        try {
+            if (
+                !el.type.prototype ||
+                !el.type.prototype.isReactComponent
+            ) {
+                const rendered = (el.type as Function)(el.props);
+                return React.isValidElement(rendered) && rendered.type === View;
+            }
+        } catch { /* ignore */ }
     }
 
-    return value;
+    return false;
 }
-
-/**
- * Export the useConstraints hook for widgets to use directly
- */
-export { useConstraints } from './react-native-constraint-system';

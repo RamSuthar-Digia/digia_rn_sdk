@@ -11,6 +11,8 @@ import { TextStyle } from 'react-native';
 import { APIModel } from '../network/api_request/api_request';
 import { Action, Context } from './actions';
 import { ActionExecutor } from './actions/action_executor';
+import { ToType } from './utils';
+import { To } from './utils/type_convertors';
 
 /**
  * Payload containing all necessary context for rendering UI components.
@@ -173,24 +175,6 @@ export class RenderPayload {
             widgetHierarchy: [...this.widgetHierarchy, widgetName],
         });
     }
-
-    /**
-     * Creates a new RenderPayload for a component.
-     * 
-     * Replaces the entity ID and preserves the page hierarchy as a prefix.
-     * 
-     * @param componentId - ID of the component being rendered
-     * @returns New RenderPayload for the component
-     */
-    forComponent(componentId: string): RenderPayload {
-        // When entering a component from a page, preserve the page hierarchy
-        // by adding the component ID to the hierarchy
-        return this.copyWith({
-            widgetHierarchy: [...this.widgetHierarchy, componentId],
-            currentEntityId: componentId,
-        });
-    }
-
     /**
      * Evaluates an ExprOr expression.
      * 
@@ -201,6 +185,7 @@ export class RenderPayload {
     evalExpr<T>(
         exprOr?: ExprOr<T> | null,
         options?: {
+            type?: ToType;
             decoder?: (value: any) => T | null;
         }
     ): T | null {
@@ -243,7 +228,7 @@ export class RenderPayload {
     ): string | null {
         const colorString = expression?.evaluate(
             options?.scopeContext ?? this.context.scopeContext,
-            { decoder: options?.decoder }
+            { type: 'string', decoder: options?.decoder }
         );
 
         if (colorString == null) return null;
@@ -297,7 +282,8 @@ export class RenderPayload {
 
         // Add the enclosing context at the tail of the incoming context
         // This allows incoming context to override enclosing values
-        return incoming.copyAndExtend(enclosing);
+        incoming.addContextAtTail(enclosing);
+        return incoming;
     }
 
     /**

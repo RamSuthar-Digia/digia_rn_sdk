@@ -1,18 +1,21 @@
 import React from 'react';
-import { View, Text as RNText } from 'react-native';
-import { VirtualStatelessWidget } from '../base/VirtualStatelessWidget';
-import { VirtualWidget } from '../base/VirtualWidget';
-import { RenderPayload } from '../../framework/render_payload';
+import { ViewStyle, StyleSheet } from 'react-native';
+import { VirtualStatelessWidget, VirtualWidget } from '../base';
 import { FlexFitProps } from '../widget_props/flex_fit_props';
 import { Props } from '../../framework/models/props';
-import { useConstraints, LayoutProvider } from '../../framework/utils/react-native-constraint-system';
+import { RenderPayload } from '../../framework/render_payload';
+import { isHeightBounded, isWidthBounded, useConstraints } from '../../framework/utils/react-native-constraint-system';
+import { isViewBased } from '../../framework/utils/widget_util';
+
 
 /**
  * VWFlexFit
- * - 'tight' -> Expanded equivalent: force child to fill available space (flex)
- * - 'loose' -> Flexible equivalent: allow child to be flexible but keep intrinsic sizing when possible
+ * - 'tight' (Expanded): child fills available space in parent's main axis
+ * - 'loose' (Flexible): child participates in flex distribution proportionally
  */
 export class VWFlexFit extends VirtualStatelessWidget<FlexFitProps> {
+    private _parentType: 'row' | 'column' | undefined;
+
     constructor(options: {
         props: FlexFitProps;
         parent?: VirtualWidget;
@@ -20,54 +23,96 @@ export class VWFlexFit extends VirtualStatelessWidget<FlexFitProps> {
         refName?: string;
         childGroups?: Map<string, VirtualWidget[]>;
         commonProps?: any;
-    }) {
+    },
+        parentType?: 'row' | 'column',
+    ) {
         super(options as any);
+        this._parentType = parentType;
     }
 
     render(payload: RenderPayload): React.ReactNode {
         const child = this.child;
         if (!child) return this.empty();
 
-        const flexFitType = this.props.flexFitType ?? undefined;
+        const flexFitType = this.props.flexFitType;
         const flexValue = this.props.flexValue ?? 1;
 
-        // Wrap in functional component to use constraints hook
-        const FlexFitContent = () => {
-            const ctx = useConstraints();
+        // Wrap in a functional component to use hooks
+        const FlexFitWrapper: React.FC = () => {
+            const parentCtx = useConstraints();
+            const parentConstraints = parentCtx?.constraints ?? null;
+
+            // Render child first
             const childElement = child.toWidget(payload) as React.ReactElement;
-            const maxWidth = ctx?.constraints.maxWidth;
 
-            if (flexFitType === 'tight') {
-                // Expanded: make child fill available space
-                // Apply maxWidth constraint to prevent overflow
-                return (
-                    <View style={{
+            // Determine if parent is bounded in main axis
+            // const mainBounded =
+            //     this._parentType === 'row'
+            //         ? isWidthBounded(parentConstraints)
+            //         : isHeightBounded(parentConstraints);
+
+            let style: ViewStyle = {};
+
+
+            switch (flexFitType) {
+                case "tight": {
+                    // EXPANDED behavior - fills available space
+                    // if (mainBounded) {
+                    //     // Parent is bounded → expand to fill
+                    //     style = {
+                    //         flex: flexValue,
+                    //     };
+                    // } else {
+                    // Parent is unbounded → shrink-wrap content
+                    // Don't try to expand in unbounded space
+                    style = {
                         flex: flexValue,
-                        maxWidth: maxWidth && isFinite(maxWidth) ? maxWidth : undefined,
-                    }}>
-                        {childElement}
-                    </View>
-                );
-            }
+                    };
+                    // }
+                    break;
+                }
 
-            if (flexFitType === 'loose') {
-                // Flexible (loose): allow child to size itself but give it flexGrow
-                // Apply maxWidth constraint to prevent overflow
-                return (
-                    <View style={{
+                case "loose": {
+                    // FLEXIBLE behavior - proportional distribution
+                    // if (mainBounded) {
+                    //     // Parent is bounded → participate in flex distribution
+                    //     style = {
+                    //         flexGrow: flexValue,
+                    //         flexShrink: 1,
+                    //         flexBasis: 0, // Important: use 0 for proper flex distribution
+                    //     };
+                    // } else {
+                    // Parent is unbounded → shrink-wrap content
+                    style = {
                         flexGrow: flexValue,
                         flexShrink: 1,
-                        maxWidth: maxWidth && isFinite(maxWidth) ? maxWidth : undefined,
-                    }}>
-                        {childElement}
-                    </View>
-                );
+                        flexBasis: 'auto',
+                    };
+                    // }
+                    break;
+                }
+
+
+                default:
+                    return childElement;
             }
 
-            // No flex behavior requested
-            return childElement;
+            // Merge styles properly
+            const childStyle = childElement.props?.style;
+
+            // Flatten child style if it's an array
+            const normalizedChildStyle = childStyle
+                ? (Array.isArray(childStyle) ? StyleSheet.flatten(childStyle) : childStyle)
+                : {};
+
+            // Merge: child style first, then flex style
+            const mergedStyle = [normalizedChildStyle, style];
+
+            return React.cloneElement(childElement, {
+                style: mergedStyle,
+            });
         };
 
-        return <FlexFitContent />;
+        return <FlexFitWrapper />;
     }
 }

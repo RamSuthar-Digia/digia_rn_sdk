@@ -7,6 +7,7 @@ import { TextPropsClass } from '../widget_props/text_props';
 import { VirtualWidget } from '../base/VirtualWidget';
 import { CommonProps } from '../../framework/models/common_props';
 import { Props } from '../../framework/models/props';
+import { useConstraints } from '../../framework/utils/react-native-constraint-system';
 
 /**
  * Marquee text component that scrolls continuously.
@@ -99,24 +100,33 @@ export class VWText extends VirtualLeafStatelessWidget<TextPropsClass> {
             );
         }
 
-        // Handle standard text rendering
-        // Note: React Native doesn't have direct TextOverflow enum like Flutter
-        // Instead, we use numberOfLines with ellipsizeMode
-        const ellipsizeMode = overflow === 'clip' ? 'clip' : 'tail';
-        const textStyle = alignment ? { ...style, textAlign: alignment } : style;
+        // Wrap in functional component to properly use constraints hook
+        const TextContent = () => {
+            const ctx = useConstraints();
+            const maxWidth = ctx?.constraints.maxWidth;
 
-        return (
+            const ellipsizeMode = overflow === 'clip' ? 'clip' : 'tail';
+            const textStyle = alignment ? { ...style, textAlign: alignment } : style;
 
-            <RNText
-                style={{
-                    overflow: 'hidden',
-                    alignSelf: 'stretch', ...textStyle
-                }}
-                numberOfLines={maxLines ?? undefined}
-                ellipsizeMode={ellipsizeMode}
-            >
-                {textContent}
-            </RNText>
-        );
+            return (
+                <RNText
+                    style={{
+                        ...textStyle,
+                        // flex: 1,
+                        // flexShrink: 1,
+                        // minHeight: textStyle?.lineHeight,
+                        // maxWidth: maxWidth != null ? '100%' : undefined,
+                        // maxWidth: maxWidth && isFinite(maxWidth) ? maxWidth : undefined,
+                    }}
+                    numberOfLines={maxLines ?? undefined}
+
+                    ellipsizeMode={ellipsizeMode}
+                >
+                    {textContent}
+                </RNText>
+            );
+        };
+
+        return <TextContent />;
     }
 }

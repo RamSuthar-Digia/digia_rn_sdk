@@ -174,28 +174,55 @@ export class To {
         }
     }
 
-    // Layout positioning
-    static alignment(value: any): { alignSelf?: FlexAlignType, alignItems?: FlexAlignType, justifyContent?: MainAxisAlignment } | undefined {
+    // Fixed alignment method
+    static alignment(value: any): ViewStyle | undefined {
         if (typeof value === 'string') {
             switch (value) {
                 case 'topLeft':
-                    return { alignSelf: 'flex-start', alignItems: 'flex-start' };
+                    return {
+                        justifyContent: 'flex-start' as const,
+                        alignItems: 'flex-start' as const
+                    };
                 case 'topCenter':
-                    return { alignSelf: 'center', alignItems: 'center' };
+                    return {
+                        justifyContent: 'flex-start' as const,
+                        alignItems: 'center' as const
+                    };
                 case 'topRight':
-                    return { alignSelf: 'flex-end', alignItems: 'flex-end' };
+                    return {
+                        justifyContent: 'flex-start' as const,
+                        alignItems: 'flex-end' as const
+                    };
                 case 'centerLeft':
-                    return { justifyContent: 'center', alignItems: 'flex-start' };
+                    return {
+                        justifyContent: 'center' as const,
+                        alignItems: 'flex-start' as const
+                    };
                 case 'center':
-                    return { justifyContent: 'center', alignItems: 'center' };
+                    return {
+                        justifyContent: 'center' as const,
+                        alignItems: 'center' as const
+                    };
                 case 'centerRight':
-                    return { justifyContent: 'center', alignItems: 'flex-end' };
+                    return {
+                        justifyContent: 'center' as const,
+                        alignItems: 'flex-end' as const
+                    };
                 case 'bottomLeft':
-                    return { justifyContent: 'flex-end', alignItems: 'flex-start' };
+                    return {
+                        justifyContent: 'flex-end' as const,
+                        alignItems: 'flex-start' as const
+                    };
                 case 'bottomCenter':
-                    return { justifyContent: 'flex-end', alignItems: 'center' };
+                    return {
+                        justifyContent: 'flex-end' as const,
+                        alignItems: 'center' as const
+                    };
                 case 'bottomRight':
-                    return { justifyContent: 'flex-end', alignItems: 'flex-end' };
+                    return {
+                        justifyContent: 'flex-end' as const,
+                        alignItems: 'flex-end' as const
+                    };
                 default:
                     // Try to parse as coordinates "x,y"
                     if (value.includes(',')) {
@@ -203,9 +230,13 @@ export class To {
                         const x = NumUtil.toDouble(parts[0]);
                         const y = NumUtil.toDouble(parts[1]);
                         if (x !== null && y !== null) {
-                            // React Native doesn't have exact Alignment equivalent, 
-                            // but we can approximate with transforms or percentage positioning
-                            return {};
+                            // For coordinate-based alignment, use absolute positioning
+                            return {
+                                position: 'absolute' as const,
+                                left: `${x * 100}%`,
+                                top: `${y * 100}%`,
+                                transform: [{ translateX: -x * 100 }, { translateY: -y * 100 }]
+                            };
                         }
                     }
                     return undefined;
@@ -213,8 +244,17 @@ export class To {
         }
 
         if (value && typeof value === 'object') {
-            // Handle object with x,y coordinates
-            return {};
+            // Handle object with x,y coordinates (e.g., {x: 0.5, y: 0.5})
+            const x = NumUtil.toDouble(value.x);
+            const y = NumUtil.toDouble(value.y);
+            if (x !== null && y !== null) {
+                return {
+                    position: 'absolute' as const,
+                    left: `${x * 100}%`,
+                    top: `${y * 100}%`,
+                    transform: [{ translateX: -x * 100 }, { translateY: -y * 100 }]
+                };
+            }
         }
 
         return undefined;
@@ -273,7 +313,7 @@ export class To {
     }
 
     // Spacing and margin
-    static margin(value: any, defaultValue: any = 0): { marginTop?: number, marginRight?: number, marginBottom?: number, marginLeft?: number } {
+    static margin(value: any, defaultValue: any = null): { marginTop?: number, marginRight?: number, marginBottom?: number, marginLeft?: number } {
         if (value == null) return defaultValue;
 
         // Handle array input
@@ -392,7 +432,7 @@ export class To {
     }
 
     // Spacing and padding
-    static padding(value: any, defaultValue: any = 0): { paddingTop?: number, paddingRight?: number, paddingBottom?: number, paddingLeft?: number } {
+    static padding(value: any, defaultValue: any = null): { paddingTop?: number, paddingRight?: number, paddingBottom?: number, paddingLeft?: number } {
         if (value == null) return defaultValue;
 
 
@@ -567,7 +607,7 @@ export class To {
     }
 
     // Border radius
-    static borderRadius(value: any, defaultValue: any = 0): object {
+    static borderRadius(value: any, defaultValue: any = null): object {
         if (value == null) return defaultValue;
 
         if (Array.isArray(value)) {

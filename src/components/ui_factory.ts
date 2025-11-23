@@ -422,12 +422,13 @@ export class DUIFactory {
 
         // Get app state and create scope context
         const appState = DUIAppState.instance;
+        const libfunctions = StdLibFunctions;
+        const jsvars = DigiaUIManager.getInstance().jsVars;
         const scope = new AppStateScopeContext({
             values: appState.values,
             variables: {
-                // TODO: Add standard library functions
-                ...StdLibFunctions.functions,
-                ...DigiaUIManager.getInstance().jsVars,
+                ...libfunctions,
+                ...jsvars,
             },
         });
 
@@ -607,15 +608,15 @@ export class DUIFactory {
 
         // Get component definition from configuration
         const componentDef = this.configProvider.getComponentDefinition(componentId);
-
+        const libfunctions = StdLibFunctions;
+        const jsvars = DigiaUIManager.getInstance().jsVars;
         // Get app state and create scope context
         const appState = DUIAppState.instance;
         const scope = new AppStateScopeContext({
             values: appState.values,
             variables: {
-                // TODO: Add standard library functions
-                ...StdLibFunctions.functions,
-                ...DigiaUIManager.getInstance().jsVars,
+                ...libfunctions,
+                ...jsvars,
             },
         });
 

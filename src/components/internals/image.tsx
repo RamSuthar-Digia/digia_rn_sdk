@@ -1,17 +1,10 @@
-// InternalImage.tsx
 import React, { useEffect, useState } from "react";
-import {
-    View,
-    Image as RNImage,
-    ActivityIndicator,
-    ImageRequireSource,
-    ImageURISource,
-    ImageResizeMode,
-    StyleProp,
-    ImageStyle,
-} from "react-native";
+import { Image as RNImage, View, ImageResizeMode } from "react-native";
 import { SvgXml } from "react-native-svg";
+import type { DimensionValue } from "react-native";
+import type { ImageRequireSource, ImageURISource } from "react-native";
 import { RenderPayload } from "../../framework/render_payload";
+import { useConstraints } from "../../framework/utils/react-native-constraint-system";
 
 interface InternalImageProps {
     imageSourceExpr: any;
@@ -23,17 +16,21 @@ interface InternalImageProps {
     placeholderSrc?: any;
     placeholderType?: string | null;
     errorImage?: any;
-    style?: StyleProp<ImageStyle>;
     imageAspectRatio?: number | null;
-    height?: number | null;
-    width?: number | null;
+    height?: DimensionValue | null;
+    width?: DimensionValue | null;
 }
 
-/* Helpers */
+/* ---------------- HELPERS ---------------- */
+
 const hasSvgExtension = (s: any) => {
     if (!s || typeof s !== "string") return false;
     const v = s.trim().toLowerCase();
-    return v.startsWith("<svg") || v.startsWith("data:image/svg") || v.endsWith(".svg");
+    return (
+        v.startsWith("<svg") ||
+        v.startsWith("data:image/svg") ||
+        v.endsWith(".svg")
+    );
 };
 
 const mapFitToResizeMode = (fit?: string): ImageResizeMode => {
@@ -59,7 +56,23 @@ const normalizeSource = (
     return null;
 };
 
-/* Main Component */
+const isFiniteNumber = (value?: DimensionValue): boolean => {
+    return value !== undefined && value !== null && value != Infinity;
+};
+
+const applySvgColor = (xml: string, color?: string | null) => {
+    if (!color) return xml;
+    try {
+        return xml
+            .replace(/fill="[^"]*"/gi, `fill="${color}"`)
+            .replace(/stroke="[^"]*"/gi, `stroke="${color}"`);
+    } catch {
+        return xml;
+    }
+};
+
+/* ---------------- MAIN COMPONENT ---------------- */
+
 const InternalImage: React.FC<InternalImageProps> = ({
     imageSourceExpr,
     payload,
@@ -68,15 +81,16 @@ const InternalImage: React.FC<InternalImageProps> = ({
     svgColor,
     placeholderSrc,
     errorImage,
-    style,
     imageAspectRatio,
     height,
     width,
 }) => {
-    const [aspectRatio, setAspectRatio] = useState<number | null>(imageAspectRatio ?? null);
     const [svgXml, setSvgXml] = useState<string | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
+    const [loading, setLoading] = useState<boolean>(false);
     const [hasError, setHasError] = useState<boolean>(false);
+
+    const ctx = useConstraints();
+    const parentConstraints = ctx?.constraints ?? null;
 
     const evaluated =
         payload && typeof payload.eval === "function"
@@ -90,185 +104,131 @@ const InternalImage: React.FC<InternalImageProps> = ({
                 : "image"
             : imageType;
 
-    const applySvgColor = (xml: string, color?: string | null) => {
-        if (!color) return xml;
-        try {
-            return xml
-                .replace(/fill="[^"]*"/gi, `fill="${color}"`)
-                .replace(/stroke="[^"]*"/gi, `stroke="${color}"`);
-        } catch {
-            return xml;
-        }
+    /* ---------------- CONTAINER STYLE ---------------- */
+    const containerStyle: any = {
+        width,
+        height,
+        aspectRatio: imageAspectRatio,
     };
 
-    /* Load image or svg */
+    // if (parentConstraints) {
+    //     containerStyle.maxWidth = parentConstraints.maxWidth;
+    //     containerStyle.maxHeight = parentConstraints.maxHeight;
+    // }
+
+    /* ---------------- IMAGE/SVG LOADING ---------------- */
     useEffect(() => {
         let mounted = true;
-        setLoading(true);
-        setHasError(false);
-        setSvgXml(null);
-        setAspectRatio(null);
-
         const src = evaluated;
-
-        if (!src) {
-            if (mounted) {
-                setAspectRatio(1);
-                setLoading(false);
-            }
-            return () => { mounted = false; };
-        }
 
         // Inline SVG
         if (actualImageType === "svg" && typeof src === "string" && src.startsWith("<svg")) {
             if (mounted) {
                 setSvgXml(applySvgColor(src, svgColor));
-                setAspectRatio(1);
-                setLoading(false);
+                setHasError(false);
             }
-            return () => { mounted = false; };
+            return () => { mounted = false };
         }
 
-        // Remote SVG
-        const uri = typeof src === "string" ? src : src?.uri || src?.url;
-        const isRemoteSvg = actualImageType === "svg" && typeof uri === "string" && uri.endsWith(".svg");
+        // Network / DataURI SVG
+        if (actualImageType === "svg" && typeof src === "string" && hasSvgExtension(src)) {
+            (async () => {
+                try {
+                    setLoading(true);
+                    let xmlData = src;
 
-        if (isRemoteSvg) {
-            fetch(uri)
-                .then(r => r.text())
-                .then(text => {
-                    if (!mounted) return;
-                    setSvgXml(applySvgColor(text, svgColor));
-                    setAspectRatio(1);
-                    setLoading(false);
-                })
-                .catch(() => {
-                    if (mounted) {
-                        setHasError(true);
-                        setLoading(false);
+                    // Fetch only when remote (not inline)
+                    if (!src.trim().startsWith("<svg")) {
+                        const response = await fetch(src);
+                        xmlData = await response.text();
                     }
-                });
-            return () => { mounted = false; };
-        }
 
-        // Normal images
-        if (typeof src === "number") {
-            const resolved = RNImage.resolveAssetSource(src);
-            if (resolved?.width && resolved.height) {
-                if (mounted) {
-                    setAspectRatio(resolved.width / resolved.height);
-                    setLoading(false);
-                }
-            }
-            return () => { mounted = false; };
-        }
-
-        if (uri) {
-            RNImage.getSize(
-                uri,
-                (w, h) => {
                     if (!mounted) return;
-                    setAspectRatio(w / h);
-                    setLoading(false);
-                },
-                () => {
+
+                    setSvgXml(applySvgColor(xmlData, svgColor));
+                    setHasError(false);
+                } catch (err) {
                     if (mounted) {
-                        setAspectRatio(1);
-                        setLoading(false);
+                        console.warn("SVG Load Error:", err);
                         setHasError(true);
                     }
+                } finally {
+                    if (mounted) setLoading(false);
                 }
-            );
+            })();
+
+            return () => { mounted = false };
         }
 
-        return () => { mounted = false; };
+        return () => { mounted = false };
     }, [evaluated, actualImageType, svgColor]);
 
-    /* Placeholder when loading */
+    /* ---------------- PLACEHOLDER ---------------- */
     if (loading && placeholderSrc) {
-        const n = normalizeSource(placeholderSrc);
         if (typeof placeholderSrc === "string" && placeholderSrc.startsWith("<svg")) {
             return (
-                <View style={[{ width: width ?? "100%", aspectRatio: aspectRatio ?? 1 }, style]}>
-                    <SvgXml xml={placeholderSrc} width="100%" height="100%" />
+                <View style={containerStyle}>
+                    <SvgXml xml={placeholderSrc} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
                 </View>
             );
         }
         return (
             <RNImage
-                source={n!}
-                style={[{ width: width ?? "100%", aspectRatio: aspectRatio ?? 1 }, style]}
+                source={normalizeSource(placeholderSrc)!}
+                style={containerStyle}
                 resizeMode={mapFitToResizeMode(fit)}
             />
         );
     }
 
-    /* SVG */
-    if (actualImageType === "svg") {
-        if (!svgXml) {
-            if (hasError && errorImage) {
-                return (
-                    <RNImage
-                        source={normalizeSource(errorImage)!}
-                        style={[{ width: width ?? "100%", aspectRatio: aspectRatio ?? 1 }, style]}
-                        resizeMode="contain"
-                    />
-                );
-            }
-            return <View style={[{ width: width ?? "100%", aspectRatio: 1 }, style]} />;
-        }
-
+    /* ---------------- ERROR FALLBACK ---------------- */
+    if (hasError && errorImage) {
         return (
-            <View style={[{ width: width ?? "100%", aspectRatio: aspectRatio ?? 1 }, style]}>
-                <SvgXml xml={svgXml} width="100%" height="100%" />
+            <View
+                style={{
+                    ...containerStyle,
+                    alignItems: "center",
+                    justifyContent: "center",
+                }}
+            >
+                <RNImage
+                    source={normalizeSource(errorImage)!}
+                    style={{ width: 40, height: 40 }}
+                    resizeMode="contain"
+                />
             </View>
         );
     }
 
-    /* Normal Image */
+    /* ---------------- SVG RENDER ---------------- */
+    if (actualImageType === "svg") {
+        if (!svgXml) return <View style={containerStyle} />;
+
+        return (
+            <SvgXml
+                xml={svgXml}
+                style={containerStyle}
+                preserveAspectRatio="xMidYMid meet"
+            />
+        );
+    }
+
+    /* ---------------- NORMAL IMAGE ---------------- */
     const imgSrc = normalizeSource(evaluated);
     if (!imgSrc) return null;
 
     return (
-        <View style={[{ width: width ?? "100%", overflow: "hidden" }, style]}>
-            <RNImage
-                source={imgSrc}
-                style={{ width: "100%", height: "100%", alignSelf: 'center', aspectRatio: aspectRatio ?? 1, }}
-                resizeMode={mapFitToResizeMode(fit)}
-                onLoad={() => {
-                    setLoading(false);
-                    setHasError(false);
-                }}
-                onError={() => {
-                    setLoading(false);
-                    setHasError(true);
-                }}
-            />
-
-            {/* Error Image */}
-            {hasError && errorImage ? (
-                <View style={{
-                    position: "absolute", left: 0, top: 0, right: 0, bottom: 0,
-                    alignItems: "center", justifyContent: "center"
-                }}>
-                    <RNImage
-                        source={normalizeSource(errorImage)!}
-                        style={{ width: 40, height: 40 }}
-                        resizeMode="contain"
-                    />
-                </View>
-            ) : null}
-
-            {/* Loading overlay */}
-            {loading ? (
-                <View style={{
-                    position: "absolute", left: 0, top: 0, right: 0, bottom: 0,
-                    alignItems: "center", justifyContent: "center"
-                }}>
-                    <ActivityIndicator />
-                </View>
-            ) : null}
-        </View>
+        <RNImage
+            source={imgSrc}
+            style={containerStyle}
+            resizeMode={mapFitToResizeMode(fit)}
+            onLoadStart={() => setLoading(true)}
+            onLoadEnd={() => setLoading(false)}
+            onError={() => {
+                setLoading(false);
+                setHasError(true);
+            }}
+        />
     );
 };
 

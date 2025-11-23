@@ -1,6 +1,6 @@
 import { VirtualWidget } from './base/VirtualWidget';
 import { VWNodeData, VWData, VWStateData, VWComponentData } from '../framework/models/vw_data';
-import { textBuilder, createChildGroups, buttonBuilder, navigationBarBuilder, containerBuilder, carouselBuilder } from './builders';
+import { textBuilder, createChildGroups, buttonBuilder, navigationBarBuilder, containerBuilder, carouselBuilder, futureBuilder, conditionalBuilder, conditionalItemBuilder } from './builders';
 import { scaffoldBuilder, rowBuilder, columnBuilder, iconBuilder, imageBuilder } from './builders';
 import { VirtualStateContainerWidget } from './base/VirtualStateContainerWidget';
 import { VirtualBuilderWidget } from './base/VirtualBuilderWidget';
@@ -116,16 +116,24 @@ export class DefaultVirtualWidgetRegistry implements VirtualWidgetRegistry {
             ['digia/image', imageBuilder as VirtualWidgetBuilder],
             ['digia/button', buttonBuilder as VirtualWidgetBuilder],
             ['digia/navigationbar', navigationBarBuilder as VirtualWidgetBuilder],
+            ['digia/futureBuilder', futureBuilder as VirtualWidgetBuilder],
+
             ['digia/container', containerBuilder as VirtualWidgetBuilder],
             [
                 'digia/carousel', carouselBuilder as VirtualWidgetBuilder
+            ],
+            [
+                'digia/conditionalBuilder', conditionalBuilder as VirtualWidgetBuilder
+            ],
+            [
+                'digia/conditionalItem', conditionalItemBuilder as VirtualWidgetBuilder
             ]
         ]);
     }
 
     createWidget(data: VWData, parent?: VirtualWidget): VirtualWidget {
         if (data instanceof VWNodeData) {
-            const type = data.type.toLowerCase();
+            const type = data.type;
             const builder = this.builders.get(type);
 
             if (!builder) {

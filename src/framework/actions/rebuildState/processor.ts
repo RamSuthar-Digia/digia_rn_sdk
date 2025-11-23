@@ -14,7 +14,7 @@ export class RebuildStateProcessor extends ActionProcessor<RebuildStateAction> {
     ): Promise<any | null> {
 
         if (action.stateContextName == null) {
-            const originState = StateContextHelper.getOriginState();
+            const originState = StateContextHelper.getOriginState(context.stateContext);
             originState?.triggerListeners();
         } else {
             const stateContext = StateContextHelper.findStateByName(

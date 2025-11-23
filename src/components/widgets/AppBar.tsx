@@ -10,7 +10,6 @@ import { IconProps } from '../widget_props/icon_props';
 import { NumUtil } from '../../framework/utils/num_util';
 import { CommonProps } from '../../framework/models/common_props';
 import { Props } from '../../framework/models/props';
-import { wrapWidget } from '../../framework/utils/widget_util';
 
 /**
  * AppBar virtual widget.
@@ -50,11 +49,11 @@ export class VWAppBar extends VirtualLeafStatelessWidget<AppBarProps> {
 
             if (iconData) {
                 const iconEl = <SimpleIcon {...iconData} size={size} color={color} />;
-                leadingElement = wrapWidget({
-                    payload,
-                    actionFlow: this.props.onTapLeadingIcon ?? undefined,
-                    child: iconEl,
-                });
+                // leadingElement = wrapWidget({
+                //     payload,
+                //     actionFlow: this.props.onTapLeadingIcon ?? undefined,
+                //     child: iconEl,
+                // });
             }
         }
 

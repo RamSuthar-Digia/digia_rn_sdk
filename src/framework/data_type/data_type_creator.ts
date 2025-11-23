@@ -1,6 +1,15 @@
 import { DataType } from './data_type';
 import { Variable } from './variable';
 import { ScopeContext } from '../expr/scope_context';
+import { ExprOr } from '../models/types';
+import { Subject } from 'rxjs';
+import AsyncController from '../../components/internals/async/async_controller';
+import TimerController from '../../components/internals/timer/timer_controller';
+import AdaptedFile from './adapted_type/file';
+import AdaptedPageController from './adapted_type/page_controller';
+import AdaptedScrollController from './adapted_type/scroll_controller';
+import AdaptedTextEditingController from './adapted_type/text_editing_controller';
+import axios from 'axios';
 
 /**
  * Utility for creating default values from Variable definitions.
@@ -61,23 +70,74 @@ export class DataTypeCreator {
      * ```
      */
     static create(variable: Variable, scopeContext?: ScopeContext): any {
-        // If variable has a default value, use it
-        if (variable.defaultValue !== undefined) {
-            return variable.defaultValue;
-        }
+        // Helper wrappers for expression-aware values
+        const expr = (v: any) => new ExprOr(v).evaluate(scopeContext) ?? null;
+        const deep = (v: any) => new ExprOr(v).deepEvaluate(scopeContext);
 
-        // Otherwise, return type-specific default
         switch (variable.type) {
             case DataType.String:
-                return '';
+                return expr(variable.defaultValue) ?? '';
             case DataType.Number:
-                return 0;
+                return expr(variable.defaultValue) ?? 0;
             case DataType.Boolean:
-                return false;
+                return expr(variable.defaultValue) ?? false;
             case DataType.JsonArray:
-                return [];
+                return deep(variable.defaultValue) ?? [];
             case DataType.Json:
+                return deep(variable.defaultValue) ?? {};
+
+            case DataType.ScrollController:
+                return new AdaptedScrollController();
+
+            case DataType.File:
+                return new AdaptedFile();
+
+            case DataType.StreamController:
+                return new Subject<any>();
+
+            case DataType.AsyncController:
+                return new AsyncController<any>();
+
+            case DataType.TextEditingController: {
+                const value = (deep(variable.defaultValue) as any) ?? {};
+                const text = new ExprOr(value['text']).evaluate(scopeContext) ?? undefined;
+                return new AdaptedTextEditingController(text ?? undefined);
+            }
+
+            case DataType.TimerController: {
+                const value = (deep(variable.defaultValue) as any) ?? {};
+                const initialValue = new ExprOr(value['initialValue']).evaluate(scopeContext) ?? 0;
+                const updateSeconds = new ExprOr(value['updateInterval']).evaluate(scopeContext) ?? 1;
+                const duration = new ExprOr(value['duration']).evaluate(scopeContext) ?? 0;
+                const isCountDown = value['timerType'] === 'countDown';
+                return new TimerController({
+                    initialValue,
+                    updateInterval: (typeof updateSeconds === 'number' ? updateSeconds : 1) * 1000,
+                    isCountDown,
+                    duration,
+                });
+            }
+
+            case DataType.ApiCancelToken: {
+                // Use axios CancelToken source token
+                try {
+                    return axios.CancelToken.source().token;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            case DataType.PageController: {
+                const value = (deep(variable.defaultValue) as any) ?? {};
+                const initialPage = new ExprOr(value['initialPage']).evaluate(scopeContext) ?? 0;
+                const controller = new AdaptedPageController({ page: initialPage });
+                return controller;
+            }
+
+            case DataType.StoryController:
+                // Story controller adapter not implemented yet; return a simple object placeholder
                 return {};
+
             default:
                 return null;
         }

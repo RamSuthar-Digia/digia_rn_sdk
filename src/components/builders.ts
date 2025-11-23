@@ -12,6 +12,10 @@ import { VWImage } from './widgets/Image';
 import { VWContainer } from './widgets/Container';
 import { CarouselProps } from './widget_props/carousel_props';
 import VWCarousel from './widgets/Carousel';
+import VWAsyncBuilder from './widgets/AsyncBuilder';
+import { AsyncBuilderProps } from './widget_props/async_builder_props';
+import VWConditionalItem from './widgets/ConditionalItem';
+import { ConditionalItemProps } from './internals/conditional_item_props';
 
 /**
  * Create child groups from VWData, converting each to VirtualWidget instances.
@@ -50,8 +54,7 @@ export function createChildGroups(
             .map((data) => {
                 return registry.createWidget(data, parent);
 
-            })
-            .filter((widget): widget is VirtualWidget => widget !== null);
+            });
 
         result.set(key, widgets);
     }
@@ -115,6 +118,7 @@ export function flexBuilder(
         props: data.props,
         commonProps: data.commonProps,
         parent: parent,
+        parentProps: data.parentProps,
         childGroups: createChildGroups(data.childGroups, parent, registry),
         refName: data.refName,
     });
@@ -229,6 +233,57 @@ export function carouselBuilder(
 ) {
     return new VWCarousel({
         props: CarouselProps.fromJson(data.props.value),
+        commonProps: data.commonProps,
+        parentProps: data.parentProps,
+        parent: parent,
+        childGroups: createChildGroups(data.childGroups, parent, registry),
+        refName: data.refName,
+    });
+}
+
+
+export function futureBuilder(
+    data: VWNodeData,
+    parent: VirtualWidget | undefined,
+    registry: VirtualWidgetRegistry,
+) {
+
+    return new VWAsyncBuilder({
+        props: AsyncBuilderProps.fromJson(data.props.value),
+        commonProps: data.commonProps,
+        parentProps: data.parentProps,
+        parent: parent,
+        childGroups: createChildGroups(data.childGroups, parent, registry),
+        refName: data.refName,
+    });
+}
+
+
+
+export function conditionalItemBuilder(
+    data: VWNodeData,
+    parent: VirtualWidget | undefined,
+    registry: VirtualWidgetRegistry,
+) {
+    return new VWConditionalItem({
+        props: ConditionalItemProps.fromJson(data.props.value),
+        commonProps: data.commonProps,
+        parentProps: data.parentProps,
+        parent: parent,
+        childGroups: createChildGroups(data.childGroups, parent, registry),
+        refName: data.refName,
+    });
+}
+
+export function conditionalBuilder(
+    data: VWNodeData,
+    parent: VirtualWidget | undefined,
+    registry: VirtualWidgetRegistry,
+) {
+    // Lazy import to avoid circular dependency
+    const { VWConditionalBuilder } = require('./widgets/ConditionalBuilder');
+    return new VWConditionalBuilder({
+        props: data.props,
         commonProps: data.commonProps,
         parentProps: data.parentProps,
         parent: parent,

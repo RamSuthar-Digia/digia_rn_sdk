@@ -2,6 +2,20 @@ import { Logger } from '../../utils/logger';
 import { JsonLike } from './types';
 import { as$ } from './functional_utils';
 import { tryJsonDecode } from './json_util';
+import AsyncController from '../../components/internals/async/async_controller';
+
+
+export type ToType =
+    | "string"
+    | "int"
+    | "double"
+    | "number"
+    | "num"
+    | "boolean"
+    | "object"
+    | "array"
+    | "asyncController";
+
 
 /**
  * Number utility functions for type conversion.
@@ -105,7 +119,7 @@ export function to<R = any>(
     value: any,
     options?: {
         defaultValue?: R;
-        type?: 'string' | 'number' | 'int' | 'double' | 'boolean' | 'object' | 'array' | 'num';
+        type?: ToType;
     }
 ): R | null {
     const { defaultValue, type } = options || {};
@@ -147,6 +161,11 @@ export function to<R = any>(
         case 'array':
             converted = toList(value);
             break;
+        case 'asyncController':
+            if (value instanceof AsyncController) {
+                converted = as$(value);
+            }
+            break;
 
         default:
             // If no type hint, try to infer from the value itself
@@ -160,7 +179,7 @@ export function to<R = any>(
     }
 
     // Try safe cast as last resort (no validator needed for generic fallback)
-    return (value as R) ?? (defaultValue ?? null);
+    return (converted as R) ?? (defaultValue ?? null);
 }
 
 /**

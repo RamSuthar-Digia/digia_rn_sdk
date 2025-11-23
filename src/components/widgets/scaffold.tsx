@@ -10,7 +10,6 @@ import { ScaffoldProps } from '../widget_props/scafold_props';
 
 
 
-// Context
 export class VWScaffold extends VirtualStatelessWidget<ScaffoldProps> {
     constructor(options: {
         props: ScaffoldProps;
@@ -24,51 +23,53 @@ export class VWScaffold extends VirtualStatelessWidget<ScaffoldProps> {
     }
 
     render(payload: RenderPayload): React.ReactNode {
-        const appBarWidget = this.childOf('appBar');
-        const bodyWidget = this.childOf('body');
+        const appBarWidget = this.childOf("appBar");
+        const bodyWidget = this.childOf("body");
 
-        const bgColor = payload.evalColorExpr(this.props.scaffoldBackgroundColor) ?? undefined;
-        const enableSafeArea = payload.evalExpr<boolean>(this.props.enableSafeArea) ?? true;
+        const bgColor =
+            payload.evalColorExpr(this.props.scaffoldBackgroundColor) ?? undefined;
+        const enableSafeArea =
+            payload.evalExpr<boolean>(this.props.enableSafeArea) ?? true;
 
-        const SimpleScaffold: React.FC = () => {
-            // Some consumer apps may not have react-native-safe-area-context
-            // properly linked or available at runtime. Fall back to safe
-            // no-op components to avoid crashing the app.
-            // const SafeView: React.ComponentType<any> = (SafeAreaView as any) || View;
-            const renderAppBar = () => {
-                if (!appBarWidget) return null;
-                return appBarWidget.toWidget(payload);
-            };
+        // AppBar
+        const AppBarElement = appBarWidget
+            ? appBarWidget.toWidget(payload)
+            : null;
 
-            const renderBody = () => {
-                const bodyContent = bodyWidget ? bodyWidget.toWidget(payload) : <View style={{ flex: 1 }} />;
-                const content = enableSafeArea ? (
-                    <SafeAreaView style={{ flex: 1 }}>
-                        {bodyContent}
-                    </SafeAreaView>
-                ) : bodyContent;
+        // Body
+        const BodyElement = bodyWidget
+            ? bodyWidget.toWidget(payload)
+            : <View style={{ flex: 1 }} />;
 
-                return (
-                    <View style={{ flex: 1 }}>
-                        {content}
-                    </View>
-                );
-            };
-
-            return (
-                <View style={[styles.scaffold, { backgroundColor: bgColor }]}>
-                    {renderAppBar()}
-                    {renderBody()}
+        // Wrap BOTH in SafeArea if required
+        const Content = (
+            <View style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                {AppBarElement}
+                <View style={{ flex: 1, alignContent: 'stretch' }}>
+                    {BodyElement}
                 </View>
-            );
-        };
+            </View>
+        );
 
-        return <SimpleScaffold />;
+        const WrappedContent = enableSafeArea ? (
+            // <SafeAreaView style={{ flex: 1 }}>
+            // {
+            Content
+
+            // }
+            // </SafeAreaView>
+        ) : (
+            Content
+        );
+
+        return (
+            // <SafeAreaProvider>
+            <View style={[styles.scaffold, { backgroundColor: bgColor }]}>
+                {WrappedContent}
+            </View>
+            // </SafeAreaProvider>
+        );
     }
-
-
-
-    // Note: Simplified scaffold - only renders an optional appBar and the body.
 }
 
 

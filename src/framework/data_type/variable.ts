@@ -1,9 +1,6 @@
+import { JsonLike } from '../utils';
 import { DataType } from './data_type';
 
-/**
- * JSON-like type representing arbitrary JSON data.
- */
-export type JsonLike = Record<string, any>;
 
 /**
  * Helper function to try multiple keys and return the first non-undefined value.

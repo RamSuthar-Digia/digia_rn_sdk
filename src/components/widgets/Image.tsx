@@ -6,7 +6,6 @@ import { Props } from '../../framework/models/props';
 import { To } from '../../framework/utils/type_convertors';
 import { VirtualWidget } from '../base/VirtualWidget';
 import { CommonProps } from '../../framework/models/common_props';
-import { wrapWidget } from '../../framework/utils/widget_util';
 import { ExtentUtil } from '../../framework/utils/extensions';
 import InternalImage from '../internals/image';
 
@@ -46,25 +45,21 @@ export class VWImage extends VirtualLeafStatelessWidget<Props> {
 
 
 
-        return wrapWidget({
-            payload,
-            aspectRatio: this.props.get('aspectRatio'),
-            child: (
-                <InternalImage
-                    imageSourceExpr={imageSourceExpr}
-                    payload={payload}
-                    imageType={imageType}
-                    fit={To.boxFit(this.props.get('fit'))}
-                    alignment={To.alignment(this.props.get('alignment'))}
-                    svgColor={svgColor ?? undefined}
-                    placeholderType={placeholderType}
-                    placeholderSrc={placeholderSrc}
-                    errorImage={errorImage}
-                    height={ExtentUtil.toHeight(this.commonProps?.style?.height ?? '')}
-                    width={ExtentUtil.toWidth(this.commonProps?.style?.width ?? '')}
-                />
-            ),
-        });
+        return (
+            <InternalImage
+                imageSourceExpr={imageSourceExpr}
+                payload={payload}
+                imageType={imageType}
+                fit={To.boxFit(this.props.get('fit'))}
+                alignment={To.alignment(this.props.get('alignment'))}
+                svgColor={svgColor ?? undefined}
+                placeholderType={placeholderType}
+                placeholderSrc={placeholderSrc}
+                errorImage={errorImage}
+                height={this.commonProps?.style?.height ?? null}
+                width={this.commonProps?.style?.width ?? null}
+            />
+        );
     }
 }
 
