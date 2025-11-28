@@ -293,27 +293,27 @@ export class To {
      *
      * We map those to RN ResizeMode values; default maps to 'center' (approx BoxFit.none).
      */
-    static boxFit(value: any): ResizeMode {
+    static boxFit(value: any): "contain" | "cover" | "fill" | "none" | "center" | "fitWidth" | "fitHeight" | "scaleDown" {
         switch (value) {
             case 'fill':
-                return 'stretch';
+                return 'fill';
             case 'contain':
                 return 'contain';
             case 'cover':
                 return 'cover';
             case 'fitWidth':
-                return 'contain';
+                return 'fitWidth';
             case 'fitHeight':
-                return 'contain';
+                return 'fitHeight';
             case 'scaleDown':
-                return 'contain';
+                return 'scaleDown';
             default:
                 return 'center';
         }
     }
 
     // Spacing and margin
-    static margin(value: any, defaultValue: any = null): { marginTop?: number, marginRight?: number, marginBottom?: number, marginLeft?: number } {
+    static margin(value: any, defaultValue: any = undefined): { marginTop?: number, marginRight?: number, marginBottom?: number, marginLeft?: number } {
         if (value == null) return defaultValue;
 
         // Handle array input
@@ -432,7 +432,7 @@ export class To {
     }
 
     // Spacing and padding
-    static padding(value: any, defaultValue: any = null): { paddingTop?: number, paddingRight?: number, paddingBottom?: number, paddingLeft?: number } {
+    static padding(value: any, defaultValue: any = undefined): { paddingTop?: number, paddingRight?: number, paddingBottom?: number, paddingLeft?: number } {
         if (value == null) return defaultValue;
 
 
@@ -607,7 +607,7 @@ export class To {
     }
 
     // Border radius
-    static borderRadius(value: any, defaultValue: any = null): object {
+    static borderRadius(value: any, defaultValue: any = undefined): object {
         if (value == null) return defaultValue;
 
         if (Array.isArray(value)) {

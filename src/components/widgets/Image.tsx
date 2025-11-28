@@ -32,10 +32,6 @@ export class VWImage extends VirtualLeafStatelessWidget<Props> {
         const imageSourceExpr = this.props.get('src.imageSrc') ?? this.props.get('imageSrc');
         const imageType = this.props.getString('imageType');
 
-        // fit can be an expression; evaluate then convert to RN resizeMode
-        const fitValue = payload.eval(this.props.get('fit'));
-        const fit = To.resizeMode(fitValue);
-
         // svgColor may be an expression that resolves to a resource key
         const svgColor = payload.evalColor(this.props.get('svgColor'));
 
@@ -50,14 +46,19 @@ export class VWImage extends VirtualLeafStatelessWidget<Props> {
                 imageSourceExpr={imageSourceExpr}
                 payload={payload}
                 imageType={imageType}
-                fit={To.boxFit(this.props.get('fit'))}
+                fit={
+                    (() => {
+                        const fitValue = To.boxFit(this.props.get('fit'));
+                        return fitValue === 'center' ? undefined : fitValue;
+                    })()
+                }
                 alignment={To.alignment(this.props.get('alignment'))}
                 svgColor={svgColor ?? undefined}
                 placeholderType={placeholderType}
                 placeholderSrc={placeholderSrc}
                 errorImage={errorImage}
-                height={this.commonProps?.style?.height ?? null}
-                width={this.commonProps?.style?.width ?? null}
+            // height={this.commonProps?.style?.height ?? null}
+            // width={this.commonProps?.style?.width ?? null}
             />
         );
     }

@@ -291,3 +291,20 @@ export function conditionalBuilder(
         refName: data.refName,
     });
 }
+
+export function stackBuilder(
+    data: VWNodeData,
+    parent: VirtualWidget | undefined,
+    registry: VirtualWidgetRegistry,
+) {
+    // Lazy import to avoid circular dependency
+    const { VWStack } = require('./widgets/Stack');
+    return new VWStack({
+        props: data.props,
+        commonProps: data.commonProps,
+        parentProps: data.parentProps,
+        parent: parent,
+        childGroups: createChildGroups(data.childGroups, parent, registry),
+        refName: data.refName,
+    });
+}

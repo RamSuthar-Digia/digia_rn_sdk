@@ -65,8 +65,12 @@ export function wrapWidget({
 
         // 🔵 Border radius
         const radius = To.borderRadius(style.style?.borderRadius);
-        if (typeof radius === 'object') Object.assign(mergedStyle, radius);
-        else if (typeof radius === 'number') mergedStyle.borderRadius = radius;
+
+        if (typeof radius === 'object') Object.assign(mergedStyle, { ...radius, overflow: 'hidden' });
+        else if (typeof radius === 'number') {
+            mergedStyle.borderRadius = radius;
+            mergedStyle.overflow = 'hidden';
+        }
 
         // 🟣 Border
         const border = style.style?.border;
@@ -140,31 +144,50 @@ export function wrapWidget({
         return content as React.ReactElement;
     }
 
-    if (provideConstraints) {
-        const ctx = useConstraints();
-        const ctxConstraints = ctx?.constraints ?? null;
-        const effectiveParent = parentConstraints ?? ctxConstraints ?? null;
+    // if (provideConstraints) {
+    //     const ctx = useConstraints();
+    //     const ctxConstraints = ctx?.constraints ?? null;
+    //     const effectiveParent = parentConstraints ?? ctxConstraints ?? null;
 
-        const styleToPass: any = { ...mergedStyle };
+    //     const styleToPass: any = { ...mergedStyle };
 
 
-        return (
-            <LayoutProvider style={styleToPass}>
-                {content}
-            </LayoutProvider>
-        );
+    //     return (
+    //         <LayoutProvider style={styleToPass}>
+    //             {content}
+    //         </LayoutProvider>
+    //     );
+    // }
+
+    // If component cannot take style → wrap it
+    if (!componentSupportsStyle(content as React.ReactElement)) {
+        // if (isChildrenImage(content as React.ReactElement)) {
+        //     mergedStyle.overflow = 'hidden';
+        // }
+        return <View style={mergedStyle}>{content}</View>;
     }
 
-    // if (isViewBased(content)) {
-    //     const contentStyle = (content as React.ReactElement).props.style as ViewStyle;
-    //     return React.cloneElement(content as React.ReactElement, { style: Object.assign({}, contentStyle, mergedStyle) });
+
+    // Normalize existing styles
+    const existingStyle = (content as any).props?.style;
+
+    const mergedFinalStyle: any[] = [];
+
+    if (Array.isArray(existingStyle)) {
+        mergedFinalStyle.push(...existingStyle);
+    } else if (existingStyle) {
+        mergedFinalStyle.push(existingStyle);
+    }
+
+    // Add wrapper style last
+    mergedFinalStyle.push(mergedStyle);
+    // if (isChildrenImage(content as React.ReactElement)) {
+    //     mergedFinalStyle.push({ overflow: 'hidden' });
     // }
 
-    return <View style={mergedStyle}>{content}</View>;
-
-    // }
-
-    // return <Default />;
+    return React.cloneElement(content as React.ReactElement, {
+        style: mergedFinalStyle,
+    });
 }
 
 /** Sizing Helper */
@@ -216,6 +239,30 @@ export function isViewBased(el: any): boolean {
             }
         } catch { /* ignore */ }
     }
+
+    return false;
+}
+
+
+
+export function componentSupportsStyle(el: React.ReactElement): boolean {
+    const type: any = el.type;
+    if (type.displayName === 'View' || type.displayName === 'ScrollView') return true;
+    // Native components: View, Text, Image, etc.
+    if (typeof type === "string") return true;
+
+    // Functional or class component with default props including style
+    if (type?.defaultProps && "style" in type.defaultProps) return true;
+
+    // If style prop exists AND is not undefined
+    if (el.props && "style" in el.props) return true;
+
+    return false;
+}
+
+export function isChildrenImage(el: React.ReactElement): boolean {
+    const type: any = el.type;
+    if (type.displayName === 'InternalImage') return true;
 
     return false;
 }

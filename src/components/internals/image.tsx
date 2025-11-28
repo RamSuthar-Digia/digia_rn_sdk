@@ -10,7 +10,9 @@ interface InternalImageProps {
     imageSourceExpr: any;
     payload: RenderPayload;
     imageType?: string | null;
-    fit?: string;
+    // Flutter BoxFit equivalents
+    fit?: "contain" | "cover" | "fill" | "fitWidth" | "fitHeight" | "scaleDown" | "none";
+
     alignment?: any;
     svgColor?: string;
     placeholderSrc?: any;
@@ -33,31 +35,50 @@ const hasSvgExtension = (s: any) => {
     );
 };
 
-const mapFitToResizeMode = (fit?: string): ImageResizeMode => {
-    if (!fit) return "contain";
+/**
+ * Maps Flutter BoxFit to React Native ImageResizeMode
+ * Flutter BoxFit options:
+ * - contain: Scale the image to fit within bounds while maintaining aspect ratio
+ * - cover: Scale the image to fill bounds while maintaining aspect ratio (may clip)
+ * - fill: Stretch the image to fill bounds (ignores aspect ratio)
+ * - fitWidth: Scale to fit width, height may overflow
+ * - fitHeight: Scale to fit height, width may overflow
+ * - scaleDown: Like contain, but never scale up
+ * - none: Display at original size (centered)
+ */
+const mapFitToResizeMode = (fit?: string): 'cover' | 'contain' | 'fill' | 'fitWidth' | 'fitHeight' | 'scale-down' | undefined => {
+    if (!fit) return undefined;
     switch (fit.toLowerCase()) {
-        case "cover": return "cover";
-        case "fill":
-        case "stretch": return "stretch";
-        case "center":
-        case "none": return "center";
-        default: return "contain";
+
+        case "scaledown":
+            return "scale-down";
+        default: {
+            const lower = fit.toLowerCase();
+            if (
+                lower === "contain" ||
+                lower === "cover" ||
+                lower === "fill" ||
+                lower === "fitwidth" ||
+                lower === "fitheight" ||
+                lower === "scale-down"
+            ) {
+                return lower as 'contain' | 'cover' | 'fill' | 'fitWidth' | 'fitHeight' | 'scale-down';
+            }
+            // fallback to undefined if not a valid value
+            return undefined;
+        }
     }
 };
 
 const normalizeSource = (
     src: any
-): ImageRequireSource | ImageURISource | null => {
+): ImageRequireSource | ImageURISource | number | null => {
     if (!src) return null;
     if (typeof src === "number") return src;
     if (typeof src === "string") return { uri: src };
     if (src.uri) return { uri: src.uri };
     if (src.url) return { uri: src.url };
     return null;
-};
-
-const isFiniteNumber = (value?: DimensionValue): boolean => {
-    return value !== undefined && value !== null && value != Infinity;
 };
 
 const applySvgColor = (xml: string, color?: string | null) => {
@@ -86,11 +107,10 @@ const InternalImage: React.FC<InternalImageProps> = ({
     width,
 }) => {
     const [svgXml, setSvgXml] = useState<string | null>(null);
-    const [loading, setLoading] = useState<boolean>(false);
+    const [svgLoading, setSvgLoading] = useState<boolean>(false);
     const [hasError, setHasError] = useState<boolean>(false);
-
-    const ctx = useConstraints();
-    const parentConstraints = ctx?.constraints ?? null;
+    const [calculatedAspectRatio, setCalculatedAspectRatio] = useState<number | null>(null);
+    const [isLoadingDimensions, setIsLoadingDimensions] = useState<boolean>(false);
 
     const evaluated =
         payload && typeof payload.eval === "function"
@@ -104,17 +124,117 @@ const InternalImage: React.FC<InternalImageProps> = ({
                 : "image"
             : imageType;
 
-    /* ---------------- CONTAINER STYLE ---------------- */
-    const containerStyle: any = {
-        width,
-        height,
-        aspectRatio: imageAspectRatio,
+    // Calculate effective aspect ratio
+    const effectiveAspectRatio = imageAspectRatio || calculatedAspectRatio;
+
+    /* ---------------- IMAGE DIMENSION CALCULATION ---------------- */
+    useEffect(() => {
+        // Only calculate if:
+        // 1. No aspect ratio provided
+        // 2. It's a regular image (not SVG)
+        // 3. It's fitWidth or fitHeight
+        // 4. Source is a network URL
+        if (
+            imageAspectRatio ||
+            actualImageType === "svg"
+            // ||
+            // (fit !== "fitWidth" && fit !== "fitHeight") ||
+            // !evaluated ||
+            // typeof evaluated !== "string"
+        ) {
+            return;
+        }
+
+        // Check if it's a network URL (not local require or data URI)
+        const isNetworkUrl = evaluated.startsWith("http://") || evaluated.startsWith("https://");
+
+        if (!isNetworkUrl) {
+            return;
+        }
+
+        let mounted = true;
+        setIsLoadingDimensions(true);
+
+        RNImage.getSize(
+            evaluated,
+            (width, height) => {
+                if (mounted && width && height) {
+                    const aspectRatio = width / height;
+                    setCalculatedAspectRatio(aspectRatio);
+                    setIsLoadingDimensions(false);
+                }
+            },
+            (error) => {
+                if (mounted) {
+                    console.warn("Failed to get image dimensions:", error);
+                    setIsLoadingDimensions(false);
+                    // Don't set error state, just proceed without aspect ratio
+                }
+            }
+        );
+
+        return () => {
+            mounted = false;
+        };
+    }, [evaluated, imageAspectRatio, actualImageType, fit]);
+
+    /* ---------------- CONTAINER STYLE (Flutter-like) ---------------- */
+    const getContainerStyle = () => {
+        const baseStyle: any = {
+            overflow: "hidden",
+        };
+
+        // For fitWidth and fitHeight, container behavior is special
+        if (fit === "fitWidth") {
+            // Container should span full width
+            baseStyle.width = width || "100%";
+            // If aspect ratio is provided, container can calculate height
+            // if (effectiveAspectRatio) {
+            //     baseStyle.aspectRatio = effectiveAspectRatio;
+            // }
+            // Otherwise height will come from image's intrinsic aspect ratio
+        } else if (fit === "fitHeight") {
+            // Container should span full height
+            baseStyle.height = height || "100%";
+            // If aspect ratio is provided, container can calculate width
+            // if (effectiveAspectRatio) {
+            //     baseStyle.aspectRatio = effectiveAspectRatio;
+            // }
+        } else if (fit === "scaleDown") {
+            // scaleDown is like contain but never scales up
+            baseStyle.maxWidth = width || "100%";
+            baseStyle.maxHeight = height || "100%";
+            // if (effectiveAspectRatio) {
+            //     baseStyle.aspectRatio = effectiveAspectRatio;
+            // }
+        } else if (fit === "none") {
+            // none displays at original size, centered
+            baseStyle.justifyContent = "center";
+            baseStyle.alignItems = "center";
+            if (width !== null && width !== undefined) {
+                baseStyle.width = width;
+            }
+            if (height !== null && height !== undefined) {
+                baseStyle.height = height;
+            }
+        } else {
+            // Standard fits: contain, cover, fill
+            // Apply dimensions like Flutter does
+            if (width !== null && width !== undefined) {
+                baseStyle.width = width;
+            }
+            if (height !== null && height !== undefined) {
+                baseStyle.height = height;
+            }
+            if (effectiveAspectRatio && !height && !width) {
+                // baseStyle.aspectRatio = effectiveAspectRatio;
+            }
+        }
+
+        return baseStyle;
     };
 
-    // if (parentConstraints) {
-    //     containerStyle.maxWidth = parentConstraints.maxWidth;
-    //     containerStyle.maxHeight = parentConstraints.maxHeight;
-    // }
+    const containerStyle = getContainerStyle();
 
     /* ---------------- IMAGE/SVG LOADING ---------------- */
     useEffect(() => {
@@ -127,14 +247,14 @@ const InternalImage: React.FC<InternalImageProps> = ({
                 setSvgXml(applySvgColor(src, svgColor));
                 setHasError(false);
             }
-            return () => { mounted = false };
+            return () => { mounted = false; };
         }
 
         // Network / DataURI SVG
         if (actualImageType === "svg" && typeof src === "string" && hasSvgExtension(src)) {
             (async () => {
                 try {
-                    setLoading(true);
+                    setSvgLoading(true);
                     let xmlData = src;
 
                     // Fetch only when remote (not inline)
@@ -153,81 +273,116 @@ const InternalImage: React.FC<InternalImageProps> = ({
                         setHasError(true);
                     }
                 } finally {
-                    if (mounted) setLoading(false);
+                    if (mounted) setSvgLoading(false);
                 }
             })();
 
-            return () => { mounted = false };
+            return () => { mounted = false; };
         }
 
-        return () => { mounted = false };
+        return () => { mounted = false; };
     }, [evaluated, actualImageType, svgColor]);
 
-    /* ---------------- PLACEHOLDER ---------------- */
-    if (loading && placeholderSrc) {
+    /* ---------------- SVG PLACEHOLDER (only for remote SVG fetch) ---------------- */
+    if (svgLoading && placeholderSrc && actualImageType === "svg") {
         if (typeof placeholderSrc === "string" && placeholderSrc.startsWith("<svg")) {
             return (
                 <View style={containerStyle}>
-                    <SvgXml xml={placeholderSrc} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+                    <SvgXml
+                        xml={placeholderSrc}
+                        width="100%"
+                        height="100%"
+                        preserveAspectRatio="xMidYMid meet"
+                    />
                 </View>
             );
         }
-        return (
-            <RNImage
-                source={normalizeSource(placeholderSrc)!}
-                style={containerStyle}
-                resizeMode={mapFitToResizeMode(fit)}
-            />
-        );
+        const placeholderSource = normalizeSource(placeholderSrc);
+        if (placeholderSource) {
+            return (
+                <RNImage
+                    source={placeholderSource}
+                    style={{ ...containerStyle, objectFit: mapFitToResizeMode(fit) }}
+                    resizeMode='cover'
+                />
+            );
+        }
     }
 
     /* ---------------- ERROR FALLBACK ---------------- */
     if (hasError && errorImage) {
-        return (
-            <View
-                style={{
-                    ...containerStyle,
-                    alignItems: "center",
-                    justifyContent: "center",
-                }}
-            >
+        const errorSource = normalizeSource(errorImage);
+        if (errorSource) {
+            return (
                 <RNImage
-                    source={normalizeSource(errorImage)!}
-                    style={{ width: 40, height: 40 }}
+                    source={errorSource}
+                    style={{ ...containerStyle }}
                     resizeMode="contain"
                 />
-            </View>
-        );
+            );
+        }
     }
 
     /* ---------------- SVG RENDER ---------------- */
     if (actualImageType === "svg") {
-        if (!svgXml) return <View style={containerStyle} />;
+        if (!svgXml) {
+            return <View style={containerStyle} />;
+        }
+
+        // Get SVG-specific aspect ratio behavior
+        const getSvgAspectRatio = () => {
+            switch (fit) {
+                case "cover":
+                    return "xMidYMid slice";
+                case "fill":
+                    return "none";
+                case "none":
+                    return "xMidYMid meet"; // centered at original size
+                case "contain":
+                case "fitWidth":
+                case "fitHeight":
+                case "scaleDown":
+                default:
+                    return "xMidYMid meet";
+            }
+        };
 
         return (
             <SvgXml
                 xml={svgXml}
-                style={containerStyle}
-                preserveAspectRatio="xMidYMid meet"
+                width="100%"
+                height="100%"
+                style={{ ...containerStyle }}
+                preserveAspectRatio={getSvgAspectRatio()}
             />
         );
     }
 
-    /* ---------------- NORMAL IMAGE ---------------- */
+    /* ---------------- NORMAL IMAGE (Flutter-like behavior) ---------------- */
     const imgSrc = normalizeSource(evaluated);
     if (!imgSrc) return null;
+
+    // Show placeholder while calculating dimensions for fitWidth/fitHeight
+    if (isLoadingDimensions && placeholderSrc && (fit === "fitWidth" || fit === "fitHeight")) {
+        const placeholderSource = normalizeSource(placeholderSrc);
+        if (placeholderSource) {
+            return (
+                <RNImage
+                    source={placeholderSource}
+                    style={{ ...containerStyle, objectFit: mapFitToResizeMode(fit) }}
+                    resizeMode='cover'
+                />
+            );
+        }
+    }
+    const resizeMode = mapFitToResizeMode(fit);
 
     return (
         <RNImage
             source={imgSrc}
-            style={containerStyle}
-            resizeMode={mapFitToResizeMode(fit)}
-            onLoadStart={() => setLoading(true)}
-            onLoadEnd={() => setLoading(false)}
-            onError={() => {
-                setLoading(false);
-                setHasError(true);
-            }}
+            style={{ ...containerStyle, flex: 1, objectFit: resizeMode }}
+            resizeMode="cover"
+            onError={() => setHasError(true)}
         />
     );
 };

@@ -4,6 +4,7 @@ import { VirtualWidget } from './VirtualWidget';
 import { RenderPayload } from '../../framework/render_payload';
 import { CommonProps } from '../../framework/models/common_props';
 import { Props } from '../../framework/models/props';
+import { wrapWidget } from '../../framework/utils/widget_util';
 
 /**
  * Widget that uses a builder function to render
@@ -40,7 +41,7 @@ export class VirtualBuilderWidget extends VirtualWidget {
 
   toWidget(payload: RenderPayload): React.ReactNode {
     try {
-      // Extend hierarchy if requested and refName exists
+      // Extend hierarchy if requested and refName exists 
       const extendedPayload =
         this.extendHierarchy && this.refName
           ? payload.withExtendedHierarchy(this.refName)
@@ -59,9 +60,15 @@ export class VirtualBuilderWidget extends VirtualWidget {
 
       let current = this.render(extendedPayload);
 
-      // Apply styling, alignment, gestures, etc.
-      // TODO: Implement wrapInContainer, wrapInAlign, wrapInGestureDetector
-      // For now, just return the rendered content
+      // Apply styling, alignment, gestures, etc. using shared wrapper
+      if (this.commonProps) {
+        return wrapWidget({
+          payload: extendedPayload,
+          style: this.commonProps,
+          child: current as React.ReactNode,
+          actionFlow: (this.commonProps as any)?.onClick ?? null,
+        });
+      }
 
       return current;
     } catch (error) {

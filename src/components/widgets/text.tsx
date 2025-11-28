@@ -65,9 +65,75 @@ const MarqueeText: React.FC<{
         </View>
     );
 };/**
- * Virtual text widget component.
- * Renders text with optional styling, alignment, and overflow handling.
- */
+//  * Virtual text widget component.
+//  * Renders text with optional styling, alignment, and overflow handling.
+//  */
+// export class VWText extends VirtualLeafStatelessWidget<TextPropsClass> {
+//     constructor(options: {
+//         props: TextPropsClass;
+//         commonProps?: CommonProps;
+//         parentProps?: Props;
+//         parent?: VirtualWidget;
+//         refName?: string;
+//     }) {
+//         super(options);
+//     }
+
+//     render(payload: RenderPayload): React.ReactNode {
+//         const text = payload.evalExpr(this.props.text);
+//         const style = payload.getTextStyle(this.props.textStyle);
+//         const maxLines = payload.evalExpr(this.props.maxLines);
+//         const alignment = To.textAlign(payload.evalExpr(this.props.alignment));
+//         const overflow = payload.evalExpr(this.props.overflow);
+
+//         const textContent = text != null ? String(text) : '';
+
+//         // Handle marquee overflow
+//         if (overflow === 'marquee') {
+//             return (
+//                 <MarqueeText
+//                     text={textContent}
+//                     style={style}
+//                     maxLines={maxLines}
+//                     textAlign={alignment}
+//                 />
+//             );
+//         }
+
+//         // Wrap in functional component to properly use constraints hook
+//         const TextContent = () => {
+//             const ctx = useConstraints();
+//             const maxWidth = ctx?.constraints.maxWidth;
+
+//             const ellipsizeMode = overflow === 'clip' ? 'clip' : 'tail';
+//             const textStyle = alignment ? { ...style, textAlign: alignment } : style;
+
+//             return (
+//                 <RNText
+//                     style={{
+//                         ...textStyle,
+//                         // flex: 1,
+//                         // flexShrink: 1,
+//                         // minHeight: textStyle?.lineHeight,
+//                         // maxWidth: maxWidth != null ? '100%' : undefined,
+//                         // maxWidth: maxWidth && isFinite(maxWidth) ? maxWidth : undefined,
+//                     }}
+//                     numberOfLines={maxLines ?? undefined}
+
+//                     ellipsizeMode={ellipsizeMode}
+//                 >
+//                     {textContent}
+//                 </RNText>
+//             );
+//         };
+
+//         return <TextContent />;
+//     }
+// }
+
+
+
+
 export class VWText extends VirtualLeafStatelessWidget<TextPropsClass> {
     constructor(options: {
         props: TextPropsClass;
@@ -80,53 +146,41 @@ export class VWText extends VirtualLeafStatelessWidget<TextPropsClass> {
     }
 
     render(payload: RenderPayload): React.ReactNode {
-        const text = payload.evalExpr(this.props.text);
+        const rawText = payload.evalExpr(this.props.text);
+        const text = rawText != null ? String(rawText) : '';
+
         const style = payload.getTextStyle(this.props.textStyle);
         const maxLines = payload.evalExpr(this.props.maxLines);
         const alignment = To.textAlign(payload.evalExpr(this.props.alignment));
         const overflow = payload.evalExpr(this.props.overflow);
 
-        const textContent = text != null ? String(text) : '';
-
-        // Handle marquee overflow
-        if (overflow === 'marquee') {
+        // ---------- MARQUEE OVERFLOW ----------
+        if (overflow === "marquee") {
             return (
                 <MarqueeText
-                    text={textContent}
-                    style={style}
+                    text={text}
+                    style={alignment ? { ...style, textAlign: alignment } : style}
                     maxLines={maxLines}
                     textAlign={alignment}
                 />
             );
         }
 
-        // Wrap in functional component to properly use constraints hook
-        const TextContent = () => {
-            const ctx = useConstraints();
-            const maxWidth = ctx?.constraints.maxWidth;
+        // ---------- NORMAL TEXT ----------
+        const finalStyle = alignment
+            ? { ...style, textAlign: alignment }
+            : style;
 
-            const ellipsizeMode = overflow === 'clip' ? 'clip' : 'tail';
-            const textStyle = alignment ? { ...style, textAlign: alignment } : style;
+        const ellipsizeMode = overflow === "clip" ? "clip" : "tail";
 
-            return (
-                <RNText
-                    style={{
-                        ...textStyle,
-                        // flex: 1,
-                        // flexShrink: 1,
-                        // minHeight: textStyle?.lineHeight,
-                        // maxWidth: maxWidth != null ? '100%' : undefined,
-                        // maxWidth: maxWidth && isFinite(maxWidth) ? maxWidth : undefined,
-                    }}
-                    numberOfLines={maxLines ?? undefined}
-
-                    ellipsizeMode={ellipsizeMode}
-                >
-                    {textContent}
-                </RNText>
-            );
-        };
-
-        return <TextContent />;
+        return (
+            <RNText
+                style={finalStyle}
+                numberOfLines={maxLines ?? undefined}
+                ellipsizeMode={ellipsizeMode}
+            >
+                {text}
+            </RNText>
+        );
     }
 }
